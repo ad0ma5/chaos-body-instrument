@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Chaos Pose Zones</title>
+        <style>
+        body { margin:0; background:#000; color:#0f0; font-family:monospace; overflow:hidden; }
+        canvas { position:absolute; top:0; left:0; width:100vw; height:100vh; }
+        #controls { position:absolute; top:10px; left:10px; z-index:10; }
+        button { margin-right:10px; font-family:monospace; }
+        </style>
+    </head>
+    <body>
+
+        <div id="controls">
+            <button id="toggleVisuals">Toggle Visuals</button>
+            <button id="toggleAudio">Toggle Audio</button>
+            <input  id="masterVolume" type="range" value="50" />
+        </div>
+
+        <video id="video" playsinline style="display:block;transform: scaleX(-1);width:100%"></video>
+        <canvas id="canvas" style="transform: scaleX(-1);"></canvas>
+
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+        <script>
+
+let lastLeftHandZone = null;
+let lastRightHandZone = null;
+let lastLeftFootZone = null;
+let lastRightFootZone = null;
+
+let lastLegZone = null;
+
+const MIN_TRIGGER_INTERVAL = 0.1; // seconds (≈ 120ms)
+let lastTriggerTime = 0;
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+//const delay7 = new Tone.Delay(0.7).toDestination();
+//const delay4 = new Tone.Delay(0.4).toDestination();
+const feedbackDelay = new Tone.FeedbackDelay("8n", 0.8).toDestination();
+// Tone instruments
+const leftSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
+const rightSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
+const drum = new Tone.MembraneSynth().connect(feedbackDelay).toDestination();
+
+let showVisuals = false;
+let audioEnabled = false;
+let masterVolumeValue = 50;
+const masterVolume = document.getElementById('masterVolume');
+masterVolume.onchange = () => {
+    masterVolumeValue = masterVolume.value-50 ;
+    console.log(masterVolume.value,masterVolumeValue);
+    drum.volume.value = masterVolumeValue;
+    leftSynth.volume.value = masterVolumeValue;
+    rightSynth.volume.value = masterVolumeValue;
+    //feedbackDelay.volume.value = masterVolumeValue;
+};
+const visualsButton = document.getElementById('toggleVisuals');
+visualsButton.onclick = () => {
+    showVisuals = !showVisuals;
+    console.log('Visuals:', showVisuals);
+    if(showVisuals){
+    visualsButton.style.background = 'green';
+    }else{
+    visualsButton.style.background = '';
+    }
+};
+const audioButton = document.getElementById('toggleAudio');
+audioButton.onclick = async () => {
+    if (!audioEnabled) await Tone.start();
+    audioEnabled = !audioEnabled;
+    console.log('Audio:', audioEnabled);
+    if(audioEnabled){
+    audioButton.style.background = 'green';
+    }else{
+    audioButton.style.background = '';
+    }
+};
+
+
+const cwidth = canvas.width/10;
+const cheight = canvas.height/8;
+
+const lwidth = canvas.width/6;
+const lheight = canvas.height/5;
+// Define chaos zones (fixed coordinates)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const zones = {
+    hands: [
+        {x:0, y:0, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)',           noteLeft:"C8", noteRight:"C9"},
+        {x:cwidth, y:0, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)',      noteLeft:"D8", noteRight:"D9"},
+        {x:2*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)',  noteLeft:"E8", noteRight:"E9"},
+        {x:3*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)',  noteLeft:"F8", noteRight:"F9"},
+        {x:4*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G8", noteRight:"G9"},
+        {x:5*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A8", noteRight:"A9"},
+        {x:6*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B8", noteRight:"b9"},
+        {x:7*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)',  noteLeft:"C9", noteRight:"C10"},
+        {x:8*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)',  noteLeft:"D9", noteRight:"D10"},
+        {x:9*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)',   noteLeft:"E9", noteRight:"E10"},
+
+        {x:0, y:cheight+10, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)', noteLeft:"C6", noteRight:"C7"},
+        {x:cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)', noteLeft:"D6", noteRight:"D7"},
+        {x:2*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)', noteLeft:"E6", noteRight:"E7"},
+        {x:3*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)', noteLeft:"F6", noteRight:"F7"},
+        {x:4*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G6", noteRight:"G7"},
+        {x:5*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A6", noteRight:"A7"},
+        {x:6*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B6", noteRight:"b7"},
+        {x:7*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)', noteLeft:"C7", noteRight:"C8"},
+        {x:8*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)', noteLeft:"D7", noteRight:"D8"},
+        {x:9*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)', noteLeft:"E7", noteRight:"E8"},
+
+        {x:0, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)',           noteLeft:"C4", noteRight:"C5"},
+        {x:cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)',      noteLeft:"D4", noteRight:"D5"},
+        {x:2*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)',  noteLeft:"E4", noteRight:"E5"},
+        {x:3*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)',  noteLeft:"F4", noteRight:"F5"},
+        {x:4*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G4", noteRight:"G5"},
+        {x:5*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A4", noteRight:"A5"},
+        {x:6*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B4", noteRight:"b5"},
+        {x:7*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)',  noteLeft:"C5", noteRight:"C6"},
+        {x:8*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)',  noteLeft:"D5", noteRight:"D6"},
+        {x:9*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)',   noteLeft:"E5", noteRight:"E6"},
+    ],
+    legs: [
+        {y:lheight*4+10, x:0, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"C2"},
+        {y:lheight*4+10, x:lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"D2"},
+        {y:lheight*4+10, x:2*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"E2"},
+
+        {y:lheight*4+10, x:3*lwidth, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"C3"},
+        {y:lheight*4+10, x:4*lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"D3"},
+        {y:lheight*4+10, x:5*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"E3"},
+
+        {y:lheight*3, x:0, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"F2"},
+        {y:lheight*3, x:lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"G2"},
+        {y:lheight*3, x:2*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"A2"},
+
+        {y:lheight*3, x:3*lwidth, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"F3"},
+        {y:lheight*3, x:4*lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"G3"},
+        {y:lheight*3, x:5*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"A3"}
+    ]
+};
+
+// MediaPipe Pose
+const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+pose.setOptions({modelComplexity:1, smoothLandmarks:true, minDetectionConfidence:0.5, minTrackingConfidence:0.5});
+pose.onResults(onResults);
+
+// Camera feed
+const camera = new Camera(video, {onFrame: async () => await pose.send({image: video}), width:640, height:480});
+camera.start();
+
+function getZoneIndex(zones, x, y) {
+    for (let i = 0; i < zones.length; i++) {
+        const z = zones[i];
+        if (x > z.x && x < z.x + z.w && y > z.y && y < z.y + z.h) {
+            return i;
+        }
+    }
+    return null;
+}
+
+function onResults(results){
+    ctx.save();
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Draw zones
+    if (showVisuals){
+        zones.hands.forEach(z => { ctx.fillStyle = z.color; ctx.fillRect(z.x,z.y,z.w,z.h); });
+        zones.legs.forEach(z => { ctx.fillStyle = z.color; ctx.fillRect(z.x,z.y,z.w,z.h); });
+    }
+
+    if (results.poseLandmarks){
+        //console.log('pose', results);
+        const leftHand = results.poseLandmarks[15];
+        const rightHand = results.poseLandmarks[16];
+        const leftFoot = results.poseLandmarks[27];
+        const rightFoot = results.poseLandmarks[28];
+        if (showVisuals){
+            drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color:'#00FF00', lineWidth:2});
+            drawLandmarks(ctx, results.poseLandmarks, {color:'#FF0000', lineWidth:1});
+            drawLandmarks(ctx, [
+                leftHand,
+                rightHand,
+                leftFoot, 
+                rightFoot
+            ], {color:'#0000FF', lineWidth:6});
+        }
+        const now = Tone.now();
+
+        if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
+
+            // LEFT HAND
+            if (leftHand) {
+                const x = leftHand.x * canvas.width;
+                const y = leftHand.y * canvas.height;
+                const zoneIndex = getZoneIndex(zones.hands, x, y);
+
+                if (zoneIndex !== null && zoneIndex !== lastLeftHandZone) {
+                    leftSynth.triggerAttackRelease(
+                        zones.hands[zoneIndex].noteLeft,
+                        "8n",
+                        now + 0.001 // 🔑 tiny offset avoids Tone conflict
+                    );
+                    console.log("Left hand → zone", zoneIndex);
+                    lastLeftHandZone = zoneIndex;
+                    lastTriggerTime = now;
+                    return;
+                }
+            }
+
+            // RIGHT HAND
+            if (rightHand) {
+                const x = rightHand.x * canvas.width;
+                const y = rightHand.y * canvas.height;
+                const zoneIndex = getZoneIndex(zones.hands, x, y);
+
+                if (zoneIndex !== null && zoneIndex !== lastRightHandZone) {
+                    rightSynth.triggerAttackRelease(
+                        zones.hands[zoneIndex].noteRight,
+                        "8n",
+                        now + 0.001
+                    );
+                    console.log("Right hand → zone", zoneIndex);
+                    lastRightHandZone = zoneIndex;
+                    lastTriggerTime = now;
+                    return;
+                }
+            }
+
+            if (leftFoot) {
+                const x = leftFoot.x * canvas.width;
+                const y = leftFoot.y * canvas.height;
+                const zoneIndex = getZoneIndex(zones.legs, x, y);
+
+                if (zoneIndex !== null && zoneIndex !== lastLeftFootZone) {
+                    drum.triggerAttackRelease(
+                        zones.legs[zoneIndex].drum,
+                        "8n",
+                        now + 0.001
+                    );
+                    console.log("L foot → zone", zoneIndex);
+                    lastLeftFootZone = zoneIndex;
+                    lastTriggerTime = now;
+                    return;
+                }
+            }
+            if (rightFoot) {
+                const x = rightFoot.x * canvas.width;
+                const y = rightFoot.y * canvas.height;
+                const zoneIndex = getZoneIndex(zones.legs, x, y);
+
+                if (zoneIndex !== null && zoneIndex !== lastRightFootZone) {
+                    drum.triggerAttackRelease(
+                        zones.legs[zoneIndex].drum,
+                        "8n",
+                        now + 0.001
+                    );
+                    console.log("R foot → zone", zoneIndex);
+                    lastRightFootZone = zoneIndex;
+                    lastTriggerTime = now;
+                    return;
+                }
+            }
+        }
+
+    }
+
+    ctx.restore();
+}
+        </script>
+    </body>
+</html>
+
