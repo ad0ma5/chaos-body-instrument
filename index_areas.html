@@ -5,7 +5,7 @@
         <title>Chaos Pose Zones</title>
         <style>
         body { margin:0; background:#000; color:#0f0; font-family:monospace; overflow:hidden; }
-        canvas { position:absolute; top:0; left:0; width:100vw; height:100vh; }
+        canvas { position:absolute; top:0; left:0; width:100vw; height:auto; }
         #controls { position:absolute; top:10px; left:10px; z-index:10; }
         button { margin-right:10px; font-family:monospace; }
         </style>
@@ -41,8 +41,7 @@ let lastTriggerTime = 0;
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+console.log([video])
 
 //const delay7 = new Tone.Delay(0.7).toDestination();
 //const delay4 = new Tone.Delay(0.4).toDestination();
@@ -52,10 +51,19 @@ const leftSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
 const rightSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
 const drum = new Tone.MembraneSynth().connect(feedbackDelay).toDestination();
 
+const masterVolume = document.getElementById('masterVolume');
+
 let showVisuals = false;
 let audioEnabled = false;
 let masterVolumeValue = 50;
-const masterVolume = document.getElementById('masterVolume');
+
+let cwidth = canvas.width/10;
+let cheight = canvas.height/8;
+
+let lwidth = canvas.width/6;
+let lheight = canvas.height/5;
+
+let zones = {}
 masterVolume.onchange = () => {
     masterVolumeValue = masterVolume.value-50 ;
     console.log(masterVolume.value,masterVolumeValue);
@@ -64,14 +72,26 @@ masterVolume.onchange = () => {
     rightSynth.volume.value = masterVolumeValue;
     //feedbackDelay.volume.value = masterVolumeValue;
 };
+
 const visualsButton = document.getElementById('toggleVisuals');
 visualsButton.onclick = () => {
     showVisuals = !showVisuals;
-    console.log('Visuals:', showVisuals);
+    console.log('Visuals:', showVisuals, [video]);
     if(showVisuals){
-    visualsButton.style.background = 'green';
+        visualsButton.style.background = 'green';
+        const rect = video.getBoundingClientRect();
+        console.log('Rendered Width:', rect.width);
+        console.log('Rendered Height:', rect.height);
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        cwidth = canvas.width/10;
+        cheight = canvas.height/8;
+
+        lwidth = canvas.width/6;
+        lheight = canvas.height/5;
+        zones = buildZones();
     }else{
-    visualsButton.style.background = '';
+        visualsButton.style.background = '';
     }
 };
 const audioButton = document.getElementById('toggleAudio');
@@ -80,18 +100,13 @@ audioButton.onclick = async () => {
     audioEnabled = !audioEnabled;
     console.log('Audio:', audioEnabled);
     if(audioEnabled){
-    audioButton.style.background = 'green';
+        audioButton.style.background = 'green';
     }else{
-    audioButton.style.background = '';
+        audioButton.style.background = '';
     }
 };
 
 
-const cwidth = canvas.width/10;
-const cheight = canvas.height/8;
-
-const lwidth = canvas.width/6;
-const lheight = canvas.height/5;
 // Define chaos zones (fixed coordinates)
 
 
@@ -103,63 +118,65 @@ const lheight = canvas.height/5;
 
 
 
+function buildZones(){
 
+    let z =
 
+    {
+        hands: [
+            {x:0, y:0, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)',           noteLeft:"C8", noteRight:"C9"},
+            {x:cwidth, y:0, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)',      noteLeft:"D8", noteRight:"D9"},
+            {x:2*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)',  noteLeft:"E8", noteRight:"E9"},
+            {x:3*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)',  noteLeft:"F8", noteRight:"F9"},
+            {x:4*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G8", noteRight:"G9"},
+            {x:5*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A8", noteRight:"A9"},
+            {x:6*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B8", noteRight:"b9"},
+            {x:7*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)',  noteLeft:"C9", noteRight:"C10"},
+            {x:8*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)',  noteLeft:"D9", noteRight:"D10"},
+            {x:9*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)',   noteLeft:"E9", noteRight:"E10"},
 
+            {x:0, y:cheight+10, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)', noteLeft:"C6", noteRight:"C7"},
+            {x:cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)', noteLeft:"D6", noteRight:"D7"},
+            {x:2*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)', noteLeft:"E6", noteRight:"E7"},
+            {x:3*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)', noteLeft:"F6", noteRight:"F7"},
+            {x:4*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G6", noteRight:"G7"},
+            {x:5*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A6", noteRight:"A7"},
+            {x:6*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B6", noteRight:"b7"},
+            {x:7*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)', noteLeft:"C7", noteRight:"C8"},
+            {x:8*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)', noteLeft:"D7", noteRight:"D8"},
+            {x:9*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)', noteLeft:"E7", noteRight:"E8"},
 
-const zones = {
-    hands: [
-        {x:0, y:0, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)',           noteLeft:"C8", noteRight:"C9"},
-        {x:cwidth, y:0, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)',      noteLeft:"D8", noteRight:"D9"},
-        {x:2*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)',  noteLeft:"E8", noteRight:"E9"},
-        {x:3*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)',  noteLeft:"F8", noteRight:"F9"},
-        {x:4*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G8", noteRight:"G9"},
-        {x:5*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A8", noteRight:"A9"},
-        {x:6*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B8", noteRight:"b9"},
-        {x:7*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)',  noteLeft:"C9", noteRight:"C10"},
-        {x:8*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)',  noteLeft:"D9", noteRight:"D10"},
-        {x:9*cwidth, y:0, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)',   noteLeft:"E9", noteRight:"E10"},
+            {x:0, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)',           noteLeft:"C4", noteRight:"C5"},
+            {x:cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)',      noteLeft:"D4", noteRight:"D5"},
+            {x:2*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)',  noteLeft:"E4", noteRight:"E5"},
+            {x:3*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)',  noteLeft:"F4", noteRight:"F5"},
+            {x:4*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G4", noteRight:"G5"},
+            {x:5*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A4", noteRight:"A5"},
+            {x:6*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B4", noteRight:"b5"},
+            {x:7*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)',  noteLeft:"C5", noteRight:"C6"},
+            {x:8*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)',  noteLeft:"D5", noteRight:"D6"},
+            {x:9*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)',   noteLeft:"E5", noteRight:"E6"},
+        ],
+        legs: [
+            {y:lheight*4+10, x:0, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"C2"},
+            {y:lheight*4+10, x:lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"D2"},
+            {y:lheight*4+10, x:2*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"E2"},
 
-        {x:0, y:cheight+10, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)', noteLeft:"C6", noteRight:"C7"},
-        {x:cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)', noteLeft:"D6", noteRight:"D7"},
-        {x:2*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)', noteLeft:"E6", noteRight:"E7"},
-        {x:3*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)', noteLeft:"F6", noteRight:"F7"},
-        {x:4*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G6", noteRight:"G7"},
-        {x:5*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A6", noteRight:"A7"},
-        {x:6*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B6", noteRight:"b7"},
-        {x:7*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)', noteLeft:"C7", noteRight:"C8"},
-        {x:8*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)', noteLeft:"D7", noteRight:"D8"},
-        {x:9*cwidth, y:cheight+10, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)', noteLeft:"E7", noteRight:"E8"},
+            {y:lheight*4+10, x:3*lwidth, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"C3"},
+            {y:lheight*4+10, x:4*lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"D3"},
+            {y:lheight*4+10, x:5*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"E3"},
 
-        {x:0, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(255,0,0,0.5)',           noteLeft:"C4", noteRight:"C5"},
-        {x:cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(0,255,0,0.5)',      noteLeft:"D4", noteRight:"D5"},
-        {x:2*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(100,200,0,0.5)',  noteLeft:"E4", noteRight:"E5"},
-        {x:3*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(0,130,100,0.5)',  noteLeft:"F4", noteRight:"F5"},
-        {x:4*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(130,50,255,0.5)', noteLeft:"G4", noteRight:"G5"},
-        {x:5*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(60,140,128,0.5)', noteLeft:"A4", noteRight:"A5"},
-        {x:6*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(190,30,255,0.5)', noteLeft:"B4", noteRight:"b5"},
-        {x:7*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(10,120,90,0.5)',  noteLeft:"C5", noteRight:"C6"},
-        {x:8*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(120,10,60,0.5)',  noteLeft:"D5", noteRight:"D6"},
-        {x:9*cwidth, y:cheight*2+20, w:cwidth, h:cheight, color:'rgba(30,100,0,0.5)',   noteLeft:"E5", noteRight:"E6"},
-    ],
-    legs: [
-        {y:lheight*4+10, x:0, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"C2"},
-        {y:lheight*4+10, x:lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"D2"},
-        {y:lheight*4+10, x:2*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"E2"},
+            {y:lheight*3, x:0, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"F2"},
+            {y:lheight*3, x:lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"G2"},
+            {y:lheight*3, x:2*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"A2"},
 
-        {y:lheight*4+10, x:3*lwidth, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"C3"},
-        {y:lheight*4+10, x:4*lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"D3"},
-        {y:lheight*4+10, x:5*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"E3"},
-
-        {y:lheight*3, x:0, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"F2"},
-        {y:lheight*3, x:lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"G2"},
-        {y:lheight*3, x:2*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"A2"},
-
-        {y:lheight*3, x:3*lwidth, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"F3"},
-        {y:lheight*3, x:4*lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"G3"},
-        {y:lheight*3, x:5*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"A3"}
-    ]
-};
+            {y:lheight*3, x:3*lwidth, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"F3"},
+            {y:lheight*3, x:4*lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"G3"},
+            {y:lheight*3, x:5*lwidth, w:lwidth, h:lheight, color:'rgba(0,0.555,0.5)', drum:"A3"}
+        ]
+    };
+    return z;
+}
 
 // MediaPipe Pose
 const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
