@@ -5,7 +5,7 @@
 <title>Face Chaos Drums</title>
 <style>
   body { margin:0; background:#000; color:#0f0; font-family:monospace; overflow:hidden; }
-  canvas { position:absolute; top:0; left:0; width:100vw; height:100vh; }
+  canvas { position:absolute; top:0; left:0; width:100vw; height:auto; }
   #controls { position:absolute; top:10px; left:10px; z-index:10; }
   button { margin-right:10px; }
 </style>
@@ -17,7 +17,7 @@
   <button id="toggleVisuals">Toggle Visuals</button>
 </div>
 
-<video id="video" playsinline style="display:none;"></video>
+<video id="video" playsinline style="display:block;width:100%;transform: scaleX(-1);"></video>
 <canvas id="canvas"></canvas>
 
 <!-- MediaPipe FaceMesh -->
@@ -39,17 +39,36 @@ canvas.width = innerWidth;
 canvas.height = innerHeight;
 
 let audioEnabled = false;
-let showVisuals = true;
+let showVisuals = false;
 
-document.getElementById("toggleAudio").onclick = async () => {
-  if (!audioEnabled) await Tone.start();
-  audioEnabled = !audioEnabled;
-  console.log("Audio:", audioEnabled);
+const visualsButton = document.getElementById('toggleVisuals');
+visualsButton.onclick = () => {
+    showVisuals = !showVisuals;
+    console.log('Visuals:', showVisuals, [video]);
+    if(showVisuals){
+        visualsButton.style.background = 'green';
+        const rect = video.getBoundingClientRect();
+        console.log('Rendered Width:', rect.width);
+        console.log('Rendered Height:', rect.height);
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+    }else{
+        visualsButton.style.background = '';
+    }
+};
+const audioButton = document.getElementById('toggleAudio');
+audioButton.onclick = async () => {
+    if (!audioEnabled) await Tone.start();
+    audioEnabled = !audioEnabled;
+    console.log('Audio:', audioEnabled);
+    if(audioEnabled){
+        audioButton.style.background = 'green';
+    }else{
+        audioButton.style.background = '';
+    }
 };
 
-document.getElementById("toggleVisuals").onclick = () => {
-  showVisuals = !showVisuals;
-};
+
 
 /* =========================
    AUDIO (DRUMS)
