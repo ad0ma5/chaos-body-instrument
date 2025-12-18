@@ -215,6 +215,7 @@ function onResults(results){
                 const x = leftHand.x * canvas.width;
                 const y = leftHand.y * canvas.height;
                 const zoneIndex = getZoneIndex(zones.hands, x, y);
+                const zoneIndexL = getZoneIndex(zones.legs, x, y);
 
                 if (zoneIndex !== null && zoneIndex !== lastLeftHandZone) {
                     leftSynth.triggerAttackRelease(
@@ -227,6 +228,17 @@ function onResults(results){
                     lastTriggerTime = now;
                     return;
                 }
+                if (zoneIndexL !== null && zoneIndexL !== lastLeftFootZone) {
+                    drum.triggerAttackRelease(
+                        zones.legs[zoneIndexL].drum,
+                        "8n",
+                        now + 0.001
+                    );
+                    console.log("Right hand → L zone", zoneIndexL);
+                    lastLeftFootZone = zoneIndexL;
+                    lastTriggerTime = now;
+                    return;
+                }
             }
 
             // RIGHT HAND
@@ -234,6 +246,7 @@ function onResults(results){
                 const x = rightHand.x * canvas.width;
                 const y = rightHand.y * canvas.height;
                 const zoneIndex = getZoneIndex(zones.hands, x, y);
+                const zoneIndexL = getZoneIndex(zones.legs, x, y);
 
                 if (zoneIndex !== null && zoneIndex !== lastRightHandZone) {
                     rightSynth.triggerAttackRelease(
@@ -243,6 +256,17 @@ function onResults(results){
                     );
                     console.log("Right hand → zone", zoneIndex);
                     lastRightHandZone = zoneIndex;
+                    lastTriggerTime = now;
+                    return;
+                }
+                if (zoneIndexL !== null && zoneIndexL !== lastRightFootZone) {
+                    drum.triggerAttackRelease(
+                        zones.legs[zoneIndexL].drum,
+                        "8n",
+                        now + 0.001
+                    );
+                    console.log("Right hand → L zone", zoneIndexL);
+                    lastRightFootZone = zoneIndexL;
                     lastTriggerTime = now;
                     return;
                 }
