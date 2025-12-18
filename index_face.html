@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Face Chaos Drums</title>
+<style>
+  body { margin:0; background:#000; color:#0f0; font-family:monospace; overflow:hidden; }
+  canvas { position:absolute; top:0; left:0; width:100vw; height:100vh; }
+  #controls { position:absolute; top:10px; left:10px; z-index:10; }
+  button { margin-right:10px; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <button id="toggleAudio">Toggle Audio</button>
+  <button id="toggleVisuals">Toggle Visuals</button>
+</div>
+
+<video id="video" playsinline style="display:none;"></video>
+<canvas id="canvas"></canvas>
+
+<!-- MediaPipe FaceMesh -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<!-- Tone.js -->
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+<script>
+/* =========================
+   SETUP
+========================= */
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+let audioEnabled = false;
+let showVisuals = true;
+
+document.getElementById("toggleAudio").onclick = async () => {
+  if (!audioEnabled) await Tone.start();
+  audioEnabled = !audioEnabled;
+  console.log("Audio:", audioEnabled);
+};
+
+document.getElementById("toggleVisuals").onclick = () => {
+  showVisuals = !showVisuals;
+};
+
+/* =========================
+   AUDIO (DRUMS)
+========================= */
+const kick = new Tone.MembraneSynth().toDestination();
+const snare = new Tone.NoiseSynth({
+  noise: { type: "white" },
+  envelope: { attack: 0.001, decay: 0.2, sustain: 0 }
+}).toDestination();
+const hat = new Tone.MetalSynth({
+  frequency: 200,
+  envelope: { attack: 0.001, decay: 0.1, release: 0.01 },
+  harmonicity: 5.1,
+  modulationIndex: 32
+}).toDestination();
+
+/* =========================
+   FACE MESH
+========================= */
+const faceMesh = new FaceMesh({
+  locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+});
+faceMesh.setOptions({
+  maxNumFaces: 1,
+  refineLandmarks: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+faceMesh.onResults(onResults);
+
+/* =========================
+   CAMERA
+========================= */
+const camera = new Camera(video, {
+  onFrame: async () => await faceMesh.send({ image: video }),
+  width: 640,
+  height: 480
+});
+camera.start();
+
+/* =========================
+   STATE (ANTI-SPAM)
+========================= */
+let mouthOpen = false;
+let leftEyeOpen = true;
+let rightEyeOpen = true;
+
+/* =========================
+   LANDMARK HELPERS
+========================= */
+// Mouth
+const MOUTH_TOP = 13;
+const MOUTH_BOTTOM = 14;
+
+// Eyes
+const LEFT_EYE_TOP = 159;
+const LEFT_EYE_BOTTOM = 145;
+const RIGHT_EYE_TOP = 386;
+const RIGHT_EYE_BOTTOM = 374;
+
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/* =========================
+   MAIN LOOP
+========================= */
+function onResults(results) {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if (!results.multiFaceLandmarks?.length) return;
+  const lm = results.multiFaceLandmarks[0];
+
+  // Mirror
+  ctx.save();
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+
+  if (showVisuals) {
+    drawConnectors(ctx, lm, FACEMESH_TESSELATION, {color:"#00ff88", lineWidth:1});
+  }
+
+  // ===== MOUTH =====
+  const mouthDist = distance(lm[MOUTH_TOP], lm[MOUTH_BOTTOM]);
+  const mouthNowOpen = mouthDist > 0.04;
+
+  if (mouthNowOpen && !mouthOpen && audioEnabled) {
+    kick.triggerAttackRelease("C1", "8n", Tone.now()+0.001);
+    console.log("👄 KICK");
+  }
+  mouthOpen = mouthNowOpen;
+
+  // ===== LEFT EYE =====
+  const leftEyeDist = distance(lm[LEFT_EYE_TOP], lm[LEFT_EYE_BOTTOM]);
+  const leftEyeNowOpen = leftEyeDist > 0.015;
+
+  if (!leftEyeNowOpen && leftEyeOpen && audioEnabled) {
+    snare.triggerAttackRelease("8n", Tone.now()+0.001);
+    console.log("👁️ LEFT EYE → SNARE");
+  }
+  leftEyeOpen = leftEyeNowOpen;
+
+  // ===== RIGHT EYE =====
+  const rightEyeDist = distance(lm[RIGHT_EYE_TOP], lm[RIGHT_EYE_BOTTOM]);
+  const rightEyeNowOpen = rightEyeDist > 0.015;
+
+  if (!rightEyeNowOpen && rightEyeOpen && audioEnabled) {
+    hat.triggerAttackRelease("16n", Tone.now()+0.001);
+    console.log("👁️ RIGHT EYE → HI-HAT");
+  }
+  rightEyeOpen = rightEyeNowOpen;
+
+  ctx.restore();
+}
+</script>
+</body>
+</html>
+
