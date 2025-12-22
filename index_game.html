@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Body Catch Game</title>
+        <style>
+body { margin:0; background:black; overflow:hidden; font-family:monospace }
+video, canvas { position:absolute; top:0; left:0; width:100vw; height:100vh }
+#ui {
+    position:absolute; top:10px; left:10px; z-index:10;
+    background:rgba(0,0,0,.6); color:#0f0;
+    padding:10px; border-radius:6px;
+}
+button { margin-right:10px }
+        </style>
+    </head>
+    <body>
+
+        <div id="ui">
+            <button id="startBtn">START GAME</button>
+            <span id="score">Score: 0</span>
+            <span id="level">Level: 1</span>
+        </div>
+
+        <video id="video" playsinline style="display:block;width:100%"></video>
+        <canvas id="canvas" style="display:block;transform: scaleX(1);width:100%"></canvas>
+
+        <!-- MediaPipe -->
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+        <!-- Tone.js -->
+        <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+        <script>
+const MIN_TRIGGER_INTERVAL = 0.1; // seconds (≈ 120ms)
+/* ================= SETUP ================= */
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+let gameRunning = false;
+let score = 0;
+let level = 1;
+const letters = ["C", "D", "E", "F", "G", "A", "B" ];
+let audioEnabled = false;
+let lastTriggerTime = 0;
+/* ================= AUDIO ================= */
+let bg, hit, fail;
+
+async function initAudio(){
+    audioEnabled = true;
+    await Tone.start();
+    bg = new Tone.Loop(time=>{
+        //let note = Math.floor(Math.random() * 7);
+        //synth.triggerAttackRelease(letters[note]+5,"8n",time);
+    },"4n").start(0);
+
+    synth = new Tone.Synth().toDestination();
+    hit = new Tone.MembraneSynth().toDestination();
+    fail = new Tone.NoiseSynth({
+        envelope:{attack:0.01,decay:0.2,sustain:0}
+    }).toDestination();
+
+    Tone.Transport.start();
+}
+
+/* ================= GAME OBJECTS ================= */
+const plate = {
+    x: canvas.width/2,
+    y: canvas.height*0.85,
+    w: canvas.width/6,
+    h: canvas.height/40
+};
+
+const platel = {
+    x: canvas.width/2,
+    y: canvas.height*0.85,
+    w: canvas.width/6,
+    h: canvas.height/40
+};
+
+let shapes = [];
+
+function spawnShapes(){
+    shapes = [];
+    const count = level;
+    for(let i=0;i<count;i++){
+        shapes.push({
+            x: Math.random()*canvas.width,
+            y: -Math.random()*canvas.height,
+            r: canvas.width/20,
+            speed: 10 + level*0.7
+        });
+    }
+}
+
+/* ================= POSE ================= */
+const pose = new Pose({
+    locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+});
+pose.setOptions({
+    modelComplexity:0,
+    smoothLandmarks:true,
+    minDetectionConfidence:.5,
+    minTrackingConfidence:.5
+});
+pose.onResults(onPose);
+
+new Camera(video,{
+    onFrame:async()=>pose.send({image:video}),
+    width:640,height:480
+}).start();
+
+/* ================= GAME LOOP ================= */
+function onPose(res){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // mirror video
+    ctx.save();
+    ctx.translate(canvas.width,0);
+    ctx.scale(-1,1);
+    ctx.drawImage(res.image,0,0,canvas.width,canvas.height);
+
+        //const leftHand = results.poseLandmarks[15];
+        //const rightHand = results.poseLandmarks[16];
+        //const leftFoot = results.poseLandmarks[27];
+        //const rightFoot = results.poseLandmarks[28];
+    if(res.poseLandmarks){
+        const RH = res.poseLandmarks[16];
+        const LH = res.poseLandmarks[15];
+        if(RH){
+            plate.x = (RH.x)*canvas.width;
+            plate.y = (RH.y)*canvas.height;
+        }
+        if(LH){
+            platel.x = (LH.x)*canvas.width;
+            platel.y = (LH.y)*canvas.height;
+        }
+    }
+
+    // draw plate
+    ctx.fillStyle="#0f0";
+    ctx.fillRect(
+        plate.x-plate.w/2,
+        plate.y,
+        plate.w,
+        plate.h
+    );
+    ctx.fillStyle="#00f";
+    ctx.fillRect(
+        platel.x-platel.w/2,
+        platel.y,
+        platel.w,
+        platel.h
+    );
+
+    if(gameRunning){
+        updateShapes();
+    }
+
+    ctx.restore();
+}
+
+/* ================= SHAPES ================= */
+function updateShapes(){
+    ctx.fillStyle="#f00";
+
+    shapes.forEach(s=>{
+        s.y += s.speed;
+        ctx.beginPath();
+        ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+        ctx.fill();
+
+        const now = Tone.now();
+        // collision
+        if(
+            s.y+s.r > plate.y &&
+                s.x > plate.x-plate.w/2 &&
+                s.x < plate.x+plate.w/2
+        ){
+            score++;
+            if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
+                hit.triggerAttackRelease("C2","8n");
+                    lastTriggerTime = now;
+            }
+            resetShape(s);
+        }
+        if(
+            s.y+s.r > platel.y &&
+                s.x > platel.x-platel.w/2 &&
+                s.x < platel.x+platel.w/2
+        ){
+            score++;
+            if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
+                hit.triggerAttackRelease("C2","8n");
+                    lastTriggerTime = now;
+            }
+            resetShape(s);
+        }
+
+        // miss
+        if(s.y > canvas.height){
+            if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
+                fail.triggerAttackRelease("8n");
+                    lastTriggerTime = now;
+            }
+            resetShape(s);
+        }
+    });
+
+    // level up
+    if(score > level*5){
+        level++;
+        document.getElementById("level").innerText="Level: "+level;
+        spawnShapes();
+    }
+
+    document.getElementById("score").innerText="Score: "+score;
+}
+
+function resetShape(s){
+    s.y = -Math.random()*canvas.height;
+    s.x = Math.random()*canvas.width;
+}
+
+/* ================= START ================= */
+document.getElementById("startBtn").onclick = async ()=>{
+    if(gameRunning) return;
+    await initAudio();
+    spawnShapes();
+    gameRunning = true;
+};
+        </script>
+    </body>
+</html>
+
