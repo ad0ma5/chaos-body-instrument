@@ -213,8 +213,8 @@ function onHands(results) {
 
     if (results.multiHandLandmarks) {
         results.multiHandLandmarks.forEach((landmarks, i) => {
-            const wrist = landmarks[0];
             /*
+            const wrist = landmarks[0];
       const x = wrist.x * canvas.width;
       const y = wrist.y * canvas.height;
 
@@ -264,15 +264,17 @@ function playHands(landmarks){
         )
         if(dtip < dpip){
             console.log("PLAY", i);
-            playNote(notes[i])
+            if(playNote(notes[i]))
+               drawLandmarks(ctx, [landmarks[tip[i]]], { color: "#f00" });
+            //drawCircle(landmarks[tip[i]])
         }
     }
 
 }
 function getDistance(a,b){
-    return Math.pow(b.x - a.x, 2) +
-        Math.pow(b.y - a.y, 2) +
-        Math.pow(b.z - a.z, 2)
+    return Math.pow(b.x - a.x, 2) 
+        +Math.pow(b.y - a.y, 2) 
+        //+Math.pow(b.z - a.z, 2)
 }
 function playNote(note){
 
@@ -284,7 +286,19 @@ function playNote(note){
             now + 0.001
         );
         lastTriggerTime = now;
+        return true;
     }
+    return false;
+}
+function drawCircle(p){
+    console.log(p ,parseInt(p.x*canvas.width) )
+// ball
+  ctx.beginPath();
+  ctx.arc(parseInt(p.x*canvas.width), parseInt(p.y*canvas.hight), 20/* r */, 0, Math.PI * 2);
+  ctx.arc(parseInt(canvas.width), parseInt(canvas.hight), 20/* r */, 0, Math.PI * 2);
+  ctx.fillStyle = "#f00";
+  ctx.fill();
+
 }
 /* ================================
    GAME LOGIC
