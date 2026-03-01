@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>HANDSTRUMENT – Stable Edition</title>
+        <style>
+        body {
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+        color: #0f0;
+        font-family: monospace;
+        }
+        #debug {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        padding: 6px;
+        background: rgba(0,0,0,0.6);
+        font-size: 12px;
+        }
+        </style>
+    </head>
+
+    <body>
+
+        <div id="controls">
+            <button id="toggleVisuals">Toggle Visuals</button>
+            <button id="toggleAudio">Toggle Audio</button>
+            <button id="toggleDelay">Toggle Delay</button>
+            <input  id="masterVolume" type="range" value="50" />
+        </div>
+        <video id="video" playsinline style="display:block; width : 100%; height : auto; position: absolute;transform: scaleX(-1);"></video>
+        <canvas id="canvas" style="display:block;transform: scaleX(-1);width:100%"></canvas>
+        <div id="debug"></div>
+
+        <!-- MediaPipe (NO ES MODULES) -->
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+        <script>
+/* ================================
+   CONFIG
+================================ */
+const DEBUG = true;
+const VIDEO_W = 640;
+const VIDEO_H = 480;
+
+/* ================================
+   DOM
+================================ */
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const debugDiv = document.getElementById("debug");
+
+video.width = VIDEO_W;
+video.height = VIDEO_H;
+//console.log('vid',video.offsetHeight, [video])
+//canvas.width = innerWidth;
+//canvas.height = innerHeight;
+canvas.width = video.offsetWidth;
+canvas.height = video.offsetHeight;
+
+const feedbackDelay = new Tone.FeedbackDelay("8n", 0.8).toDestination();
+// Tone instruments
+const leftSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
+const rightSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
+const drum = new Tone.MembraneSynth().connect(feedbackDelay).toDestination();
+
+const masterVolume = document.getElementById('masterVolume');
+
+let showVisuals = false;
+let audioEnabled = false;
+let delayEnabled = false;
+let masterVolumeValue = 50;
+
+const visualsButton = document.getElementById('toggleVisuals');
+visualsButton.onclick = () => {
+    showVisuals = !showVisuals;
+    console.log('Visuals:', showVisuals, [video]);
+    if(showVisuals){
+        visualsButton.style.background = 'green';
+        const rect = video.getBoundingClientRect();
+        console.log('Rendered Width:', rect.width);
+        console.log('Rendered Height:', rect.height);
+        /*
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        cwidth = canvas.width/10;
+        cheight = canvas.height/8;
+
+        lwidth = canvas.width/6;
+        lheight = canvas.height/5;
+        zones = buildZones();
+        */
+        video.style.display = "none";
+    }else{
+        visualsButton.style.background = '';
+        video.style.display = "block";
+    }
+};
+const audioButton = document.getElementById('toggleAudio');
+audioButton.onclick = async () => {
+    if (!audioEnabled) await Tone.start();
+    audioEnabled = !audioEnabled;
+    console.log('Audio:', audioEnabled);
+    if(audioEnabled){
+        audioButton.style.background = 'green';
+    }else{
+        audioButton.style.background = '';
+    }
+};
+const delayButton = document.getElementById('toggleDelay');
+delayButton.onclick = async () => {
+    if (!delayEnabled) await Tone.start();
+    delayEnabled = !delayEnabled;
+    console.log('Audio:', delayEnabled, feedbackDelay);
+    if(delayEnabled){
+        delayButton.style.background = 'green';
+        feedbackDelay.wet.value = 1;
+    }else{
+        delayButton.style.background = '';
+        feedbackDelay.wet.value = 0;
+    }
+};
+
+/* ================================
+   DEBUG
+================================ */
+function log(msg) {
+    if (!DEBUG) return;
+    debugDiv.textContent = msg;
+}
+
+/* ================================
+   GAME STATE
+================================ */
+const paddleHeight = 200;
+const paddleWidth = 20;
+
+let leftPaddleY = canvas.height / 2;
+let rightPaddleY = canvas.height / 2;
+
+let ball = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    vx: 10,
+    vy: 4,
+    r: 30
+};
+
+let scoreL = 0;
+let scoreR = 0;
+
+/* ================================
+   MEDIAPIPE HANDS (SAFE)
+================================ */
+const hands = new Hands({
+    locateFile: file =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+    maxNumHands: 4,
+    modelComplexity: 0, // VERY IMPORTANT
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6
+});
+
+let handsBusy = false;
+
+hands.onResults(onHands);
+
+/* ================================
+   CAMERA (LOCKED)
+================================ */
+const camera = new Camera(video, {
+    width: VIDEO_W,
+    height: VIDEO_H,
+    onFrame: async () => {
+        if (handsBusy) return;
+        handsBusy = true;
+        try {
+            await hands.send({ image: video });
+        } catch (e) {
+            console.warn("Frame skipped", e);
+        }
+        handsBusy = false;
+    }
+});
+
+camera.start();
+
+/* ================================
+   HAND RESULTS
+================================ */
+function onHands(results) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // mirror camera
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.translate(-canvas.width, 0);
+    //ctx.translate(0,-canvas.width);
+    //ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    if (results.multiHandLandmarks) {
+        results.multiHandLandmarks.forEach((landmarks, i) => {
+            const wrist = landmarks[0];
+            /*
+      const x = wrist.x * canvas.width;
+      const y = wrist.y * canvas.height;
+
+      if (x < canvas.width / 2) {
+        leftPaddleY = y;
+      } else {
+        rightPaddleY = y;
+      }
+*/
+            drawLandmarks(ctx, landmarks, { color: "#0ff" });
+            playHands(landmarks);
+        });
+    }
+
+    //updateBall();
+    //drawGame();
+}
+/* ================================
+   PLAY LOGIC https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
+================================ */
+const MIN_TRIGGER_INTERVAL = 0.2//0.1; // seconds (≈ 120ms)
+let lastTriggerTime = 0;
+let notes = ["C4","C5","C6","C7"]
+const notesL = ["C","D","E","F","G","A","B"]
+
+function randNotes(){
+    for(let i = 0; i < 4; i++){
+       notes[i] = notesL[Math.floor(Math.random()*7)]+(Math.floor(Math.random()*4)+2);
+    }
+}
+randNotes()
+function playHands(landmarks){
+
+    //console.log(landmarks);
+    const mpc = [5, 9, 13, 17]
+    const pip = [6, 10, 14, 18]
+    const tip = [8, 12, 16, 20]
+
+    for(let i = 0; i < 4; i++){
+        const dpip = getDistance(
+            landmarks[mpc[i]],
+            landmarks[pip[i]]
+        );
+        const dtip = getDistance(
+            landmarks[mpc[i]],
+            landmarks[tip[i]]
+        )
+        if(dtip < dpip){
+            console.log("PLAY", i);
+            playNote(notes[i])
+        }
+    }
+
+}
+function getDistance(a,b){
+    return Math.pow(b.x - a.x, 2) +
+        Math.pow(b.y - a.y, 2) +
+        Math.pow(b.z - a.z, 2)
+}
+function playNote(note){
+
+        const now = Tone.now();
+    if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
+        rightSynth.triggerAttackRelease(
+            note,//"C5",
+            "8n",
+            now + 0.001
+        );
+        lastTriggerTime = now;
+    }
+}
+/* ================================
+   GAME LOGIC
+================================ */
+/*
+function updateBall() {
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.y < 0 || ball.y > canvas.height) {
+        ball.vy *= -1;
+    }
+
+    // Left paddle
+    if (
+        ball.x - ball.r < paddleWidth &&
+            ball.y > leftPaddleY - paddleHeight / 2 &&
+            ball.y < leftPaddleY + paddleHeight / 2
+    ) {
+        ball.vx *= -1.05;
+    }
+
+    // Right paddle
+    if (
+        ball.x + ball.r > canvas.width - paddleWidth &&
+            ball.y > rightPaddleY - paddleHeight / 2 &&
+            ball.y < rightPaddleY + paddleHeight / 2
+    ) {
+        ball.vx *= -1.05;
+    }
+
+    // Score
+    if (ball.x < 0) {
+        scoreR++;
+        resetBall();
+    }
+    if (ball.x > canvas.width) {
+        scoreL++;
+        resetBall();
+    }
+}
+
+function resetBall() {
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+    ball.vx = Math.sign(ball.vx) * 10;
+    ball.vy = 4;
+}
+
+/* ================================
+   DRAW
+================================ */
+/*
+function drawGame() {
+    // paddles
+    ctx.fillStyle = "#0f0";
+    ctx.fillRect(0, leftPaddleY - paddleHeight / 2, paddleWidth, paddleHeight);
+    ctx.fillRect(
+        canvas.width - paddleWidth,
+        rightPaddleY - paddleHeight / 2,
+        paddleWidth,
+        paddleHeight
+    );
+
+    // ball
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fillStyle = "#f00";
+    ctx.fill();
+
+    // score
+    ctx.fillText(`L ${scoreL}`, 20, 20);
+    ctx.fillText(`R ${scoreR}`, canvas.width - 60, 20);
+
+    log(`HandsBusy: ${handsBusy} | Score ${scoreL}:${scoreR}`);
+}
+*/
+        </script>
+
+    </body>
+</html>
+
