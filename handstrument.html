@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
+        
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta charset="UTF-8" />
         <title>HANDSTRUMENT – Stable Edition</title>
         <style>
@@ -64,6 +66,8 @@ canvas.width = video.offsetWidth;
 canvas.height = video.offsetHeight;
 
 const feedbackDelay = new Tone.FeedbackDelay("8n", 0.8).toDestination();
+
+        feedbackDelay.wet.value = 0;
 // Tone instruments
 const leftSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
 const rightSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
