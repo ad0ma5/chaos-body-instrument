@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta charset="UTF-8" />
         <title>HANDSTRUMENT – Stable Edition</title>
         <style>
@@ -67,7 +67,7 @@ canvas.height = video.offsetHeight;
 
 const feedbackDelay = new Tone.FeedbackDelay("8n", 0.8).toDestination();
 
-        feedbackDelay.wet.value = 0;
+feedbackDelay.wet.value = 0;
 // Tone instruments
 const leftSynth = new Tone.PluckSynth().connect(feedbackDelay).toDestination();
 const rightSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
@@ -80,6 +80,14 @@ let audioEnabled = false;
 let delayEnabled = false;
 let masterVolumeValue = 50;
 
+masterVolume.onchange = () => {
+    masterVolumeValue = masterVolume.value-50 ;
+    console.log(masterVolume.value,masterVolumeValue);
+    drum.volume.value = masterVolumeValue;
+    leftSynth.volume.value = masterVolumeValue;
+    rightSynth.volume.value = masterVolumeValue;
+    //feedbackDelay.volume.value = masterVolumeValue;
+};
 const visualsButton = document.getElementById('toggleVisuals');
 visualsButton.onclick = () => {
     showVisuals = !showVisuals;
@@ -242,7 +250,7 @@ const notesL = ["C","D","E","F","G","A","B"]
 
 function randNotes(){
     for(let i = 0; i < 4; i++){
-       notes[i] = notesL[Math.floor(Math.random()*7)]+(Math.floor(Math.random()*4)+2);
+        notes[i] = notesL[Math.floor(Math.random()*7)]+(Math.floor(Math.random()*4)+2);
     }
 }
 randNotes()
@@ -265,7 +273,7 @@ function playHands(landmarks){
         if(dtip < dpip){
             console.log("PLAY", i);
             if(playNote(notes[i]))
-               drawLandmarks(ctx, [landmarks[tip[i]]], { color: "#f00" });
+                drawLandmarks(ctx, [landmarks[tip[i]]], { color: "#f00" });
             //drawCircle(landmarks[tip[i]])
         }
     }
@@ -280,7 +288,7 @@ function playHands(landmarks){
     if(tdtip < tdpip){
         console.log("PLAY drum");
         if(playDrum())
-           drawLandmarks(ctx, [landmarks[4]], { color: "#f00" });
+            drawLandmarks(ctx, [landmarks[4]], { color: "#f00" });
         //drawCircle(landmarks[tip[i]])
     }
 
@@ -288,17 +296,19 @@ function playHands(landmarks){
 function getDistance(a,b){
     return Math.pow(b.x - a.x, 2) 
         +Math.pow(b.y - a.y, 2) 
-        //+Math.pow(b.z - a.z, 2)
+    //+Math.pow(b.z - a.z, 2)
 }
-const player = new Tone.Player("https://tonejs.github.io/audio/drum-samples/handdrum-loop.mp3");
+//const player = new Tone.Player("https://tonejs.github.io/audio/drum-samples/handdrum-loop.mp3");
+const player = new Tone.Player("./sounds/d1.wav");
 player.autostart = false;
 const filter = new Tone.AutoFilter(4).start();
 const distortion = new Tone.Distortion(0.5);
 // connect the player to the filter, distortion and then to the master output
-player.chain(filter, distortion, Tone.Destination);
+//player.chain(filter, distortion, Tone.Destination);
+player.chain(filter, Tone.Destination);
 function playNote(note){
 
-        const now = Tone.now();
+    const now = Tone.now();
     if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
         /*
         */
@@ -315,18 +325,23 @@ function playNote(note){
 }
 function playDrum(){
 
+    const now = Tone.now();
+    if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
         player.start(); //.triggerAttackRelease(["C1", "E1", "G1", "B1"], 0.5);
 
-    return true
+        lastTriggerTime = now;
+        return true
+    }
+    return false;
 }
 function drawCircle(p){
     console.log(p ,parseInt(p.x*canvas.width) )
-// ball
-  ctx.beginPath();
-  ctx.arc(parseInt(p.x*canvas.width), parseInt(p.y*canvas.hight), 20/* r */, 0, Math.PI * 2);
-  ctx.arc(parseInt(canvas.width), parseInt(canvas.hight), 20/* r */, 0, Math.PI * 2);
-  ctx.fillStyle = "#f00";
-  ctx.fill();
+    // ball
+    ctx.beginPath();
+    ctx.arc(parseInt(p.x*canvas.width), parseInt(p.y*canvas.hight), 20/* r */, 0, Math.PI * 2);
+    ctx.arc(parseInt(canvas.width), parseInt(canvas.hight), 20/* r */, 0, Math.PI * 2);
+    ctx.fillStyle = "#f00";
+    ctx.fill();
 
 }
 /* ================================
@@ -405,7 +420,7 @@ function drawGame() {
     log(`HandsBusy: ${handsBusy} | Score ${scoreL}:${scoreR}`);
 }
 */
-        </script>
+</script>
 
     </body>
 </html>
