@@ -69,7 +69,7 @@ const feedbackDelay = new Tone.FeedbackDelay("8n", 0.8).toDestination();
 
         feedbackDelay.wet.value = 0;
 // Tone instruments
-const leftSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
+const leftSynth = new Tone.PluckSynth().connect(feedbackDelay).toDestination();
 const rightSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
 const drum = new Tone.MembraneSynth().connect(feedbackDelay).toDestination();
 
@@ -235,7 +235,7 @@ function onHands(results) {
 /* ================================
    PLAY LOGIC https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
 ================================ */
-const MIN_TRIGGER_INTERVAL = 0.2//0.1; // seconds (≈ 120ms)
+const MIN_TRIGGER_INTERVAL = 0.1//0.1; // seconds (≈ 120ms)
 let lastTriggerTime = 0;
 let notes = ["C4","C5","C6","C7"]
 const notesL = ["C","D","E","F","G","A","B"]
@@ -269,6 +269,20 @@ function playHands(landmarks){
             //drawCircle(landmarks[tip[i]])
         }
     }
+    const tdpip = getDistance(
+        landmarks[5], // mpc
+        landmarks[3] // th ip
+    )
+    const tdtip = getDistance(
+        landmarks[5], // mpc
+        landmarks[4] // th tip
+    )
+    if(tdtip < tdpip){
+        console.log("PLAY drum");
+        if(playDrum())
+           drawLandmarks(ctx, [landmarks[4]], { color: "#f00" });
+        //drawCircle(landmarks[tip[i]])
+    }
 
 }
 function getDistance(a,b){
@@ -276,19 +290,34 @@ function getDistance(a,b){
         +Math.pow(b.y - a.y, 2) 
         //+Math.pow(b.z - a.z, 2)
 }
+const player = new Tone.Player("https://tonejs.github.io/audio/drum-samples/handdrum-loop.mp3");
+player.autostart = false;
+const filter = new Tone.AutoFilter(4).start();
+const distortion = new Tone.Distortion(0.5);
+// connect the player to the filter, distortion and then to the master output
+player.chain(filter, distortion, Tone.Destination);
 function playNote(note){
 
         const now = Tone.now();
     if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
+        /*
+        */
         rightSynth.triggerAttackRelease(
             note,//"C5",
             "8n",
             now + 0.001
         );
+
         lastTriggerTime = now;
         return true;
     }
     return false;
+}
+function playDrum(){
+
+        player.start(); //.triggerAttackRelease(["C1", "E1", "G1", "B1"], 0.5);
+
+    return true
 }
 function drawCircle(p){
     console.log(p ,parseInt(p.x*canvas.width) )
