@@ -299,7 +299,8 @@ function getDistance(a,b){
     //+Math.pow(b.z - a.z, 2)
 }
 //const player = new Tone.Player("https://tonejs.github.io/audio/drum-samples/handdrum-loop.mp3");
-const player = new Tone.Player("./sounds/d1.wav");
+const drumno = Math.floor(Math.random()*4)+1;
+const player = new Tone.Player("./sounds/d"+drumno+".wav");
 player.autostart = false;
 const filter = new Tone.AutoFilter(4).start();
 const distortion = new Tone.Distortion(0.5);
