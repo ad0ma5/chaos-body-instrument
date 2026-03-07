@@ -21,19 +21,40 @@
         background: rgba(0,0,0,0.6);
         font-size: 12px;
         }
+        .modal{
+            position: absolute;
+            top: 0;
+            left: 0;
+            width:100%;
+            height: 500px;
+            z-index: 2;
+        }
+        #start_button{
+            width: 100%;
+            height: 500px;
+        }
+        #video{
+            z-index: 0;
+        }
+        #canvas{
+            z-index: 1;
+        }
         </style>
     </head>
 
     <body>
 
+        <div class="modal">
+            <button type="button" id="start_button" > START </button>
+        </div>
         <div id="controls">
             <button id="toggleVisuals">Toggle Visuals</button>
             <button id="toggleAudio">Toggle Audio</button>
             <button id="toggleDelay">Toggle Delay</button>
             <input  id="masterVolume" type="range" value="50" />
         </div>
-        <video id="video" playsinline style="display:block; width : 100%; height : auto; position: absolute;transform: scaleX(-1);"></video>
-        <canvas id="canvas" style="display:block;transform: scaleX(-1);width:100%"></canvas>
+        <video id="video" playsinline style="display:none; width : 100%; height : auto; position: absolute;transform: scaleX(-1);"></video>
+        <canvas id="canvas" style="display:block; transform: scaleX(-1);width:100%"></canvas>
         <div id="debug"></div>
 
         <!-- MediaPipe (NO ES MODULES) -->
@@ -53,7 +74,7 @@ const VIDEO_H = 480;
    DOM
 ================================ */
 const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
+//const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const debugDiv = document.getElementById("debug");
 
@@ -62,8 +83,8 @@ video.height = VIDEO_H;
 //console.log('vid',video.offsetHeight, [video])
 //canvas.width = innerWidth;
 //canvas.height = innerHeight;
-canvas.width = video.offsetWidth;
-canvas.height = video.offsetHeight;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
 const feedbackDelay = new Tone.FeedbackDelay("8n", 0.8).toDestination();
 
@@ -75,7 +96,7 @@ const drum = new Tone.MembraneSynth().connect(feedbackDelay).toDestination();
 
 const masterVolume = document.getElementById('masterVolume');
 
-let showVisuals = false;
+let showVisuals = true;
 let audioEnabled = false;
 let delayEnabled = false;
 let masterVolumeValue = 50;
@@ -138,6 +159,17 @@ delayButton.onclick = async () => {
     }
 };
 
+const startButton = document.getElementById('start_button');
+startButton.onclick = async () => {
+    console.log('Start Audio:',  [startButton] );
+    await Tone.start();
+    startButton.parentNode.style.display = 'none';
+    audioEnabled = true;
+    audioButton.style.background = 'green';
+        //visualsButton.style.background = 'green';
+        //video.style.display = "none";
+    //showVisuals = true
+};
 /* ================================
    DEBUG
 ================================ */
@@ -209,6 +241,7 @@ camera.start();
    HAND RESULTS
 ================================ */
 function onHands(results) {
+    //console.log("onHands", results, ctx);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // mirror camera
@@ -271,7 +304,7 @@ function playHands(landmarks){
             landmarks[tip[i]]
         )
         if(dtip < dpip){
-            console.log("PLAY", i);
+            //console.log("PLAY", i);
             if(playNote(notes[i]))
                 drawLandmarks(ctx, [landmarks[tip[i]]], { color: "#f00" });
             //drawCircle(landmarks[tip[i]])
@@ -286,7 +319,7 @@ function playHands(landmarks){
         landmarks[4] // th tip
     )
     if(tdtip < tdpip){
-        console.log("PLAY drum");
+        //console.log("PLAY drum");
         if(playDrum())
             drawLandmarks(ctx, [landmarks[4]], { color: "#f00" });
         //drawCircle(landmarks[tip[i]])
@@ -336,7 +369,7 @@ function playDrum(){
     return false;
 }
 function drawCircle(p){
-    console.log(p ,parseInt(p.x*canvas.width) )
+    //console.log(p ,parseInt(p.x*canvas.width) )
     // ball
     ctx.beginPath();
     ctx.arc(parseInt(p.x*canvas.width), parseInt(p.y*canvas.hight), 20/* r */, 0, Math.PI * 2);
@@ -345,82 +378,6 @@ function drawCircle(p){
     ctx.fill();
 
 }
-/* ================================
-   GAME LOGIC
-================================ */
-/*
-function updateBall() {
-    ball.x += ball.vx;
-    ball.y += ball.vy;
-
-    if (ball.y < 0 || ball.y > canvas.height) {
-        ball.vy *= -1;
-    }
-
-    // Left paddle
-    if (
-        ball.x - ball.r < paddleWidth &&
-            ball.y > leftPaddleY - paddleHeight / 2 &&
-            ball.y < leftPaddleY + paddleHeight / 2
-    ) {
-        ball.vx *= -1.05;
-    }
-
-    // Right paddle
-    if (
-        ball.x + ball.r > canvas.width - paddleWidth &&
-            ball.y > rightPaddleY - paddleHeight / 2 &&
-            ball.y < rightPaddleY + paddleHeight / 2
-    ) {
-        ball.vx *= -1.05;
-    }
-
-    // Score
-    if (ball.x < 0) {
-        scoreR++;
-        resetBall();
-    }
-    if (ball.x > canvas.width) {
-        scoreL++;
-        resetBall();
-    }
-}
-
-function resetBall() {
-    ball.x = canvas.width / 2;
-    ball.y = canvas.height / 2;
-    ball.vx = Math.sign(ball.vx) * 10;
-    ball.vy = 4;
-}
-
-/* ================================
-   DRAW
-================================ */
-/*
-function drawGame() {
-    // paddles
-    ctx.fillStyle = "#0f0";
-    ctx.fillRect(0, leftPaddleY - paddleHeight / 2, paddleWidth, paddleHeight);
-    ctx.fillRect(
-        canvas.width - paddleWidth,
-        rightPaddleY - paddleHeight / 2,
-        paddleWidth,
-        paddleHeight
-    );
-
-    // ball
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.fillStyle = "#f00";
-    ctx.fill();
-
-    // score
-    ctx.fillText(`L ${scoreL}`, 20, 20);
-    ctx.fillText(`R ${scoreR}`, canvas.width - 60, 20);
-
-    log(`HandsBusy: ${handsBusy} | Score ${scoreL}:${scoreR}`);
-}
-*/
 </script>
 
     </body>
