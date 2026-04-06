@@ -9,14 +9,30 @@
         canvas { position:absolute; top:0; left:0; width:100vw; height:auto; }
         #controls { position:absolute; top:10px; left:10px; z-index:10; }
         button { margin-right:10px; font-family:monospace; }
+        .modal{
+            position: absolute;
+            top: 0;
+            left: 0;
+            width:100%;
+            height: 500px;
+            z-index: 2;
+        }
+        #start_button{
+            width: 100%;
+            height: 500px;
+        }
         </style>
     </head>
     <body>
-
+        <div class="modal">
+            <button type="button" id="start_button" > START </button>
+        </div>
         <div id="controls">
             <button id="toggleVisuals">Toggle Visuals</button>
             <button id="toggleAudio">Toggle Audio</button>
-            <input  id="masterVolume" type="range" value="50" />
+            <button id="toggleDelay">Toggle Delay</button>
+            vol<input  id="masterVolume" type="range" value="50" />
+            del<input  id="delval" type="range" value="80" />
         </div>
 
         <video id="video" playsinline style="display:block;transform: scaleX(-1);width:100%"></video>
@@ -56,6 +72,7 @@ const masterVolume = document.getElementById('masterVolume');
 
 let showVisuals = false;
 let audioEnabled = false;
+let delayEnabled = false;
 let masterVolumeValue = 50;
 
 let cwidth = canvas.width/10;
@@ -64,7 +81,8 @@ let cheight = canvas.height/8;
 let lwidth = canvas.width/6;
 let lheight = canvas.height/5;
 
-let zones = {}
+window.zones = buildZones();
+
 masterVolume.onchange = () => {
     masterVolumeValue = masterVolume.value-50 ;
     console.log(masterVolume.value,masterVolumeValue);
@@ -72,6 +90,11 @@ masterVolume.onchange = () => {
     leftSynth.volume.value = masterVolumeValue;
     rightSynth.volume.value = masterVolumeValue;
     //feedbackDelay.volume.value = masterVolumeValue;
+};
+delval.onchange = () => {
+    //feedbackDelay.delayTime.value = delval.value/100
+    feedbackDelay.feedback.value = delval.value/100
+ 
 };
 
 const visualsButton = document.getElementById('toggleVisuals');
@@ -90,7 +113,7 @@ visualsButton.onclick = () => {
 
         lwidth = canvas.width/6;
         lheight = canvas.height/5;
-        zones = buildZones();
+        window.zones = buildZones();
     }else{
         visualsButton.style.background = '';
     }
@@ -107,7 +130,32 @@ audioButton.onclick = async () => {
     }
 };
 
+const delayButton = document.getElementById('toggleDelay');
+delayButton.onclick = async () => {
+    if (!delayEnabled) await Tone.start();
+    delayEnabled = !delayEnabled;
+    console.log('Audio:', delayEnabled, feedbackDelay);
+    if(delayEnabled){
+        delayButton.style.background = 'green';
+        feedbackDelay.wet.value = 1;
+    }else{
+        delayButton.style.background = '';
+        feedbackDelay.wet.value = 0;
+    }
+};
 
+const startButton = document.getElementById('start_button');
+startButton.onclick = async () => {
+    console.log('Start Audio:',  [startButton] );
+    await Tone.start();
+    startButton.parentNode.style.display = 'none';
+    audioEnabled = true;
+    audioButton.style.background = 'green';
+        feedbackDelay.wet.value = 0;
+        //visualsButton.style.background = 'green';
+        //video.style.display = "none";
+    //showVisuals = true
+};
 // Define chaos zones (fixed coordinates)
 
 
@@ -121,6 +169,7 @@ audioButton.onclick = async () => {
 
 function buildZones(){
 
+    console.log('buildingzones');
     let z =
 
     {
@@ -189,6 +238,7 @@ const camera = new Camera(video, {onFrame: async () => await pose.send({image: v
 camera.start();
 
 function getZoneIndex(zones, x, y) {
+
     for (let i = 0; i < zones.length; i++) {
         const z = zones[i];
         if (x > z.x && x < z.x + z.w && y > z.y && y < z.y + z.h) {
@@ -202,7 +252,10 @@ function onResults(results){
     ctx.save();
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-
+    if(!zones){
+        console.log('no zones', zones);
+        return;
+    }
     // Draw zones
     if (showVisuals){
         zones.hands.forEach(z => { ctx.fillStyle = z.color; ctx.fillRect(z.x,z.y,z.w,z.h); });

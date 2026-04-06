@@ -39,6 +39,7 @@
         #canvas{
             z-index: 1;
         }
+        button{ padding: 10px; }
         </style>
     </head>
 
@@ -51,7 +52,8 @@
             <button id="toggleVisuals">Toggle Visuals</button>
             <button id="toggleAudio">Toggle Audio</button>
             <button id="toggleDelay">Toggle Delay</button>
-            <input  id="masterVolume" type="range" value="50" />
+            Vol.<input  id="masterVolume" type="range" value="50" />
+            thrshld.<input  id="thrshld" type="range" value="10" />
         </div>
         <video id="video" playsinline style="display:none; width : 100%; height : auto; position: absolute;transform: scaleX(-1);"></video>
         <canvas id="canvas" style="display:block; transform: scaleX(-1);width:100%"></canvas>
@@ -93,6 +95,7 @@ feedbackDelay.wet.value = 0;
 const leftSynth = new Tone.PluckSynth().connect(feedbackDelay).toDestination();
 const rightSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
 const drum = new Tone.MembraneSynth().connect(feedbackDelay).toDestination();
+const plucky = new Tone.PluckSynth().connect(feedbackDelay).toDestination();
 
 const masterVolume = document.getElementById('masterVolume');
 
@@ -100,7 +103,9 @@ let showVisuals = true;
 let audioEnabled = false;
 let delayEnabled = false;
 let masterVolumeValue = 50;
-
+thrshld.onchange = () => {
+    MIN_TRIGGER_INTERVAL = thrshld.value/100;
+};
 masterVolume.onchange = () => {
     masterVolumeValue = masterVolume.value-50 ;
     console.log(masterVolume.value,masterVolumeValue);
@@ -276,7 +281,7 @@ function onHands(results) {
 /* ================================
    PLAY LOGIC https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
 ================================ */
-const MIN_TRIGGER_INTERVAL = 0.1//0.1; // seconds (≈ 120ms)
+let MIN_TRIGGER_INTERVAL = 0.1//0.1; // seconds (≈ 120ms)
 let lastTriggerTime = 0;
 let notes = ["C4","C5","C6","C7"]
 const notesL = ["C","D","E","F","G","A","B"]
@@ -332,7 +337,9 @@ function getDistance(a,b){
     //+Math.pow(b.z - a.z, 2)
 }
 //const player = new Tone.Player("https://tonejs.github.io/audio/drum-samples/handdrum-loop.mp3");
-const drumno = Math.floor(Math.random()*4)+1;
+const drumnotes = ["C1", "C2", "C3", "C4"];
+const drumno = Math.floor(Math.random()*4);
+const drumactive = drumnotes[drumno];
 const player = new Tone.Player("./sounds/d"+drumno+".wav");
 player.autostart = false;
 const filter = new Tone.AutoFilter(4).start();
@@ -340,6 +347,7 @@ const distortion = new Tone.Distortion(0.5);
 // connect the player to the filter, distortion and then to the master output
 //player.chain(filter, distortion, Tone.Destination);
 player.chain(filter, Tone.Destination);
+
 function playNote(note){
 
     const now = Tone.now();
@@ -361,8 +369,19 @@ function playDrum(){
 
     const now = Tone.now();
     if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
-        player.start(); //.triggerAttackRelease(["C1", "E1", "G1", "B1"], 0.5);
-
+        //player.start(); //.triggerAttackRelease(["C1", "E1", "G1", "B1"], 0.5);
+        //plucky.triggerAttack(drumactive, "+1");
+                    drum.triggerAttackRelease(
+                        drumactive,
+                        "8n",
+                        now + 0.001
+                    );
+    /*    
+    plucky.triggerAttack("C4", "+0.5");
+    plucky.triggerAttack("C3", "+1");
+    plucky.triggerAttack("C2", "+1.5");
+    plucky.triggerAttack("C1", "+2");
+*/
         lastTriggerTime = now;
         return true
     }
