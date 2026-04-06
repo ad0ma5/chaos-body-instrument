@@ -102,6 +102,7 @@ visualsButton.onclick = () => {
     showVisuals = !showVisuals;
     console.log('Visuals:', showVisuals, [video]);
     if(showVisuals){
+        video.style.display = "block";
         visualsButton.style.background = 'green';
         const rect = video.getBoundingClientRect();
         console.log('Rendered Width:', rect.width);
@@ -116,6 +117,7 @@ visualsButton.onclick = () => {
         window.zones = buildZones();
     }else{
         visualsButton.style.background = '';
+        video.style.display = "none";
     }
 };
 const audioButton = document.getElementById('toggleAudio');
@@ -371,7 +373,7 @@ function onResults(results){
                 }
             }
         }
-        if (showVisuals){
+        if (true || showVisuals){
             if(triggeredSection !== -1){
             let h = zones.hands[triggeredSection];
             ctx.fillStyle = '#fff'; if(h) ctx.fillRect(h.x,h.y,h.w,h.h); 
