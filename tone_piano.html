@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tone.js Mega Piano Lab</title>
+<script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+<style>
+body { font-family: sans-serif; background:#111; color:#eee; }
+.controls { display:flex; flex-wrap:wrap; gap:10px; }
+.panel { border:1px solid #444; padding:10px; border-radius:8px; }
+.keys { display:flex; margin-top:20px; user-select:none; }
+.key {
+  width:40px; height:150px; border:1px solid #000;
+  background:white; position:relative; margin-right:2px;
+}
+.key.black {
+  width:25px; height:90px; background:black;
+  position:absolute; left:28px; top:0; z-index:2;
+}
+canvas { background:#000; }
+</style>
+</head>
+<body>
+
+<h1>🎹 Tone.js Mega Piano Lab</h1>
+
+<div class="controls">
+
+<div class="panel">
+<h3>Engine</h3>
+<select id="engine">
+<option value="Synth">Synth</option>
+<option value="AMSynth">AMSynth</option>
+<option value="FMSynth">FMSynth</option>
+<option value="DuoSynth">DuoSynth</option>
+<option value="MembraneSynth">MembraneSynth</option>
+<option value="MetalSynth">MetalSynth</option>
+</select>
+</div>
+
+<div class="panel">
+<h3>Oscillator</h3>
+<select id="osc">
+<option>sine</option>
+<option>square</option>
+<option>triangle</option>
+<option>sawtooth</option>
+</select>
+</div>
+
+<div class="panel">
+<h3>Envelope</h3>
+<label>A <input type="range" id="attack" min="0" max="2" step="0.01" value="0.01"></label><br>
+<label>D <input type="range" id="decay" min="0" max="2" step="0.01" value="0.2"></label><br>
+<label>S <input type="range" id="sustain" min="0" max="1" step="0.01" value="0.5"></label><br>
+<label>R <input type="range" id="release" min="0" max="5" step="0.01" value="1"></label>
+</div>
+
+<div class="panel">
+<h3>Filter</h3>
+<label>Freq <input type="range" id="filterFreq" min="100" max="8000" value="2000"></label><br>
+<label>Q <input type="range" id="filterQ" min="0" max="20" value="1"></label>
+</div>
+
+<div class="panel">
+<h3>FX</h3>
+<label><input type="checkbox" id="reverbOn"> Reverb</label><br>
+<label><input type="checkbox" id="delayOn"> Delay</label><br>
+<label><input type="checkbox" id="distOn"> Distortion</label><br>
+<label><input type="checkbox" id="chorusOn"> Chorus</label><br>
+<label><input type="checkbox" id="phaserOn"> Phaser</label>
+</div>
+
+<div class="panel">
+<h3>Transport</h3>
+<label>BPM <input type="range" id="bpm" min="40" max="200" value="120"></label><br>
+<button id="startTransport">Start Loop</button>
+<button id="stopTransport">Stop</button>
+</div>
+
+<div class="panel">
+<h3>Output</h3>
+<label>Volume <input type="range" id="volume" min="-60" max="0" value="-6"></label><br>
+<label>Pan <input type="range" id="pan" min="-1" max="1" step="0.01" value="0"></label>
+</div>
+
+<div class="panel">
+<h3>Range</h3>
+<label>Octave <input type="range" id="octave" min="2" max="6" value="4"></label>
+</div>
+
+</div>
+
+<div class="keys" id="keys"></div>
+
+<h3>Analyzer</h3>
+<canvas id="scope" width="600" height="200"></canvas>
+
+<script>
+let synth;
+let filter = new Tone.Filter(2000, "lowpass");
+let gain = new Tone.Gain(0.8);
+let pan = new Tone.Panner(0);
+
+let reverb = new Tone.Reverb({ decay: 3 });
+let delay = new Tone.FeedbackDelay("8n", 0.3);
+let distortion = new Tone.Distortion(0.4);
+let chorus = new Tone.Chorus(4, 2.5, 0.5).start();
+let phaser = new Tone.Phaser();
+
+let analyser = new Tone.Analyser("waveform", 1024);
+
+let chain = [filter, gain, pan, analyser, Tone.Destination];
+
+function buildSynth() {
+  if (synth) synth.dispose();
+
+  let type = document.getElementById("engine").value;
+
+  synth = new Tone[type]({
+    oscillator: { type: document.getElementById("osc").value },
+    envelope: {
+      attack: parseFloat(attack.value),
+      decay: parseFloat(decay.value),
+      sustain: parseFloat(sustain.value),
+      release: parseFloat(release.value)
+    }
+  });
+
+  rebuildChain();
+}
+
+function rebuildChain() {
+  synth.disconnect();
+
+  let nodes = [filter];
+
+  if (reverbOn.checked) nodes.push(reverb);
+  if (delayOn.checked) nodes.push(delay);
+  if (distOn.checked) nodes.push(distortion);
+  if (chorusOn.checked) nodes.push(chorus);
+  if (phaserOn.checked) nodes.push(phaser);
+
+  nodes.push(gain, pan, analyser, Tone.Destination);
+
+  synth.chain(...nodes);
+}
+
+function noteOn(note) {
+  synth.triggerAttack(note);
+}
+function noteOff(note) {
+  synth.triggerRelease(note);
+}
+
+function makeKeys() {
+  const keys = document.getElementById("keys");
+  keys.innerHTML = "";
+  let octave = parseInt(document.getElementById("octave").value);
+
+  let notes = ["C","D","E","F","G","A","B"];
+  notes.forEach(n=>{
+    let key = document.createElement("div");
+    key.className="key";
+    key.innerText=n;
+
+    let note = n + octave;
+
+    key.onmousedown = ()=>noteOn(note);
+    key.onmouseup = ()=>noteOff(note);
+
+    keys.appendChild(key);
+  });
+}
+
+function update() {
+  filter.frequency.value = filterFreq.value;
+  filter.Q.value = filterQ.value;
+  gain.gain.value = Tone.dbToGain(volume.value);
+  pan.pan.value = pan.value;
+  Tone.Transport.bpm.value = bpm.value;
+
+  rebuildChain();
+}
+
+document.querySelectorAll("input,select").forEach(e=>{
+  e.oninput = ()=>{
+    buildSynth();
+    update();
+    makeKeys();
+  };
+});
+
+document.getElementById("startTransport").onclick = async ()=>{
+  await Tone.start();
+  Tone.Transport.scheduleRepeat(time=>{
+    synth.triggerAttackRelease("C4","8n",time);
+  },"4n");
+  Tone.Transport.start();
+};
+
+document.getElementById("stopTransport").onclick = ()=>{
+  Tone.Transport.stop();
+  Tone.Transport.cancel();
+};
+
+function draw() {
+  requestAnimationFrame(draw);
+  let canvas = document.getElementById("scope");
+  let ctx = canvas.getContext("2d");
+
+  let data = analyser.getValue();
+
+  ctx.fillStyle="#000";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.beginPath();
+  for(let i=0;i<data.length;i++){
+    let x = i/data.length * canvas.width;
+    let y = (data[i]*0.5+0.5)*canvas.height;
+    if(i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle="#0f0";
+  ctx.stroke();
+}
+
+buildSynth();
+makeKeys();
+draw();
+
+</script>
+</body>
+</html>

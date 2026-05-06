@@ -110,10 +110,10 @@ visualsButton.onclick = () => {
         canvas.width = rect.width;
         canvas.height = rect.height;
         cwidth = canvas.width/10;
-        cheight = canvas.height/8;
+        cheight = canvas.height/15;
 
         lwidth = canvas.width/6;
-        lheight = canvas.height/5;
+        lheight = canvas.height/10;
         window.zones = buildZones();
     }else{
         visualsButton.style.background = '';
@@ -213,7 +213,6 @@ function buildZones(){
             {y:lheight*4+10, x:0, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"C2"},
             {y:lheight*4+10, x:lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"D2"},
             {y:lheight*4+10, x:2*lwidth, w:lwidth, h:lheight, color:'rgba(0,0,255,0.5)', drum:"E2"},
-
             {y:lheight*4+10, x:3*lwidth, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"C3"},
             {y:lheight*4+10, x:4*lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"D3"},
             {y:lheight*4+10, x:5*lwidth, w:lwidth, h:lheight, color:'rgba(0,0,255,0.5)', drum:"E3"},
@@ -221,7 +220,6 @@ function buildZones(){
             {y:lheight*3, x:0, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"F2"},
             {y:lheight*3, x:lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"G2"},
             {y:lheight*3, x:2*lwidth, w:lwidth, h:lheight, color:'rgba(0,0,255,0.5)', drum:"A2"},
-
             {y:lheight*3, x:3*lwidth, w:lwidth, h:lheight, color:'rgba(255,0,0,0.5)', drum:"F3"},
             {y:lheight*3, x:4*lwidth, w:lwidth, h:lheight, color:'rgba(0,255,0,0.5)', drum:"G3"},
             {y:lheight*3, x:5*lwidth, w:lwidth, h:lheight, color:'rgba(0,0,255.5)', drum:"A3"}
