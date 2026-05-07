@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<style>
+body{margin:0;background:#000;color:#0f0;font-family:sans-serif;overflow:hidden}
+#start{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:40px;padding:20px 40px}
+canvas{position:absolute;top:0;left:0;width:100vw;height:100vh; z-index:-1;}
+#ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.slider{position:absolute;background:rgba(0,255,0,0.3)}
+.blue{background:rgba(0,0,255,0.3)}
+#debug{position:absolute;bottom:0;left:0;width:100%;max-height:40%;overflow:auto;background:rgba(0,0,0,0.7);font-size:12px}
+button{pointer-events:auto;margin:2px}
+</style>
+</head>
+<body>
+<button id="start">START</button>
+<video id="video" style="display: block;z-index: -3;transform: scaleX(-1);position: absolute;width: 100%;"  playsinline style="display:none"></video>
+<canvas id="canvas" style="transform: scaleX(-1);"></canvas>
+<div id="ui">
+<div id="lvol" class="slider" style="left:0;top:0;width:10%;height:100%"></div>
+<div id="lpitch" class="slider" style="left:0;top:0;width:100%;height:10%"></div>
+<div id="rgrain" class="slider blue" style="right:0;top:0;width:10%;height:100%"></div>
+<div id="rdelay" class="slider blue" style="left:0;bottom:0;width:100%;height:10%"></div>
+</div>
+<div id="debug">
+<button id="toggleDebug">debug</button>
+<button id="camOff">cam</button>
+<button id="soundOff">sound</button>
+<button id="allOff">reset</button>
+<div id="log"></div>
+</div>
+<script>
+let started=false,pose,cam,ctx,video=document.getElementById('video'),canvas=document.getElementById('canvas'),logEl=document.getElementById('log')
+let synth,delay,grainGain
+function log(t){logEl.innerHTML+=t+"<br>"}
+function resize(){
+  //console.log([video], video.videoWidth, video.videoHeight)
+  //canvas.width=window.innerWidth;canvas.height=window.innerHeight
+  canvas.width=video.videoWidth;canvas.height=video.videoHeight
+}
+window.onresize=resize;resize()
+document.getElementById('start').onclick=async()=>{
+  document.getElementById('start').style.display='none'
+  started=true
+  await Tone.start()
+  synth=new Tone.Oscillator(440,"sine").start()
+  //synth =new Tone.OmniOscillator("C#4", "pwm").toDestination().start();
+  grainGain=new Tone.Gain(0).toDestination()
+  delay=new Tone.FeedbackDelay(0,0.5).toDestination()
+  synth.connect(grainGain)
+  grainGain.connect(delay)
+  log("tone ok", )
+  pose=new Pose({locateFile:(f)=>"https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/"+f})
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true})
+  pose.onResults(onPose)
+  cam=new Camera(video,{onFrame:async()=>{await pose.send({image:video})},width:640,height:480})
+  cam.start()
+  log("camera ok")
+  ctx=canvas.getContext('2d')
+  resize();
+}
+let resized = false;
+function onPose(res){
+  if(!resized){
+  	resize()
+    resized = true
+  }
+  ctx.save()
+  ctx.clearRect(0,0,canvas.width,canvas.height)
+  //ctx.scale(-1,1)
+  //ctx.drawImage(res.image,-canvas.width,0,canvas.width,canvas.height)
+  if(res.poseLandmarks){
+  logEl.innerHTML="pose ok<br>"
+  let lm=res.poseLandmarks
+  draw(lm)
+  control(lm)
+  }else{
+  log("no body")
+  }
+  ctx.restore()
+}
+function draw(lm){
+
+  drawConnectors(ctx, lm, POSE_CONNECTIONS, {color:'#00FF00', lineWidth:2});
+  drawLandmarks(ctx, lm, {color:'#FF0000', lineWidth:1});
+}
+function clipNumber(value, min, max) {
+    return Math.max(min, Math.min(value, max));
+}
+function silence(){
+
+  grainGain.gain.value=0;
+  synth.frequency.value=0
+
+}
+function control(lm){
+  let lh=lm[15],rh=lm[16]
+  if(!lh||!rh)return
+  let lx=1-lh.x,ly=lh.y,rx=1-rh.x,ry=rh.y
+  let vol=clipNumber(1-ly, 0, 1)
+  let pitch=clipNumber(ry*600, 0, 20000)
+  let grain=clipNumber(lx,0,1);
+  let del=clipNumber(rx,0,1);
+    console.log('vol',vol,'pich',ry,'grain', grain,'del',del)
+  grainGain.gain.value=vol
+  synth.frequency.value=pitch
+  synth.volume.value=0
+  delay.delayTime.value=del
+  if(grain<0.5){grainGain.gain.value=vol}else{grainGain.gain.value=vol*(1-grain)}
+  
+  updateUI(1-vol,ry,del,grain);
+}
+function updateUI(vol, pitch,del,grain){
+  lvol.style.height = vol *100+"%";
+  rgrain.style.height = pitch * 100+"%";
+  rdelay.style.width = grain * 100+"%";
+  lpitch.style.width = del * 100+"%";
+}
+document.getElementById('toggleDebug').onclick=()=>{
+  logEl.style.display=logEl.style.display==="none"?"block":"none"
+}
+document.getElementById('camOff').onclick=()=>{
+  if(cam){cam.stop();log("cam off")}
+}
+document.getElementById('soundOff').onclick=()=>{
+  if(synth){synth.stop();log("sound off")}
+}
+document.getElementById('allOff').onclick=()=>{
+  location.reload()
+}
+</script>
+</body>
+</html>
