@@ -28,6 +28,8 @@
             <button type="button" id="start_button" > START </button>
         </div>
         <div id="controls">
+
+            <button id="stop_button">Stop</button>
             <button id="toggleVisuals">Toggle Visuals</button>
             <button id="toggleAudio">Toggle Audio</button>
             <button id="toggleDelay">Toggle Delay</button>
@@ -55,6 +57,9 @@ let lastLegZone = null;
 const MIN_TRIGGER_INTERVAL = 0.1; // seconds (≈ 120ms)
 let lastTriggerTime = 0;
 
+document.getElementById('stop_button').onclick=()=>{
+  location.reload()
+}
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -153,10 +158,14 @@ startButton.onclick = async () => {
     startButton.parentNode.style.display = 'none';
     audioEnabled = true;
     audioButton.style.background = 'green';
-        feedbackDelay.wet.value = 0;
+    feedbackDelay.wet.value = 0;
         //visualsButton.style.background = 'green';
         //video.style.display = "none";
     //showVisuals = true
+    camera.start();
+
+    showVisuals = true;
+    visualsButton.style.background = 'green';
 };
 // Define chaos zones (fixed coordinates)
 
@@ -235,7 +244,6 @@ pose.onResults(onResults);
 
 // Camera feed
 const camera = new Camera(video, {onFrame: async () => await pose.send({image: video}), width:640, height:480});
-camera.start();
 
 function getZoneIndex(zones, x, y) {
 

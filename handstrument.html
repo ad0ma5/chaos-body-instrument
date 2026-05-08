@@ -49,6 +49,7 @@
             <button type="button" id="start_button" > START </button>
         </div>
         <div id="controls">
+            <button id="stop_button">Stop</button>
             <button id="toggleVisuals">Toggle Visuals</button>
             <button id="toggleAudio">Toggle Audio</button>
             <button id="toggleDelay">Toggle Delay</button>
@@ -175,6 +176,9 @@ startButton.onclick = async () => {
         //video.style.display = "none";
     //showVisuals = true
 };
+document.getElementById('stop_button').onclick=()=>{
+  location.reload()
+}
 /* ================================
    DEBUG
 ================================ */
