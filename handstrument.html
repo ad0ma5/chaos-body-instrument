@@ -21,7 +21,7 @@
         background: rgba(0,0,0,0.6);
         font-size: 12px;
         }
-        .modal{
+        .modal, .cmodal{
             position: absolute;
             top: 0;
             left: 0;
@@ -29,6 +29,7 @@
             height: 500px;
             z-index: 2;
         }
+        .cmodal{ display: none; background: blue; }
         #start_button{
             width: 100%;
             height: 500px;
@@ -48,6 +49,13 @@
         <div class="modal">
             <button type="button" id="start_button" > START </button>
         </div>
+        <div class="cmodal" id="cmodal">
+            <h1>Tone.js Sample Configuration</h1>
+            <div id="samples"></div>
+            <button id="save">Save</button>
+            <button id="load">Load</button>
+            <button id="cclose">close</button>
+        </div>
         <div id="controls">
             <button id="stop_button">Stop</button>
             <button id="toggleVisuals">Toggle Visuals</button>
@@ -55,6 +63,7 @@
             <button id="toggleDelay">Toggle Delay</button>
             Vol.<input  id="masterVolume" type="range" value="50" />
             thrshld.<input  id="thrshld" type="range" value="10" />
+            <button id="toggleConfig">Config</button>
         </div>
         <video id="video" playsinline style="display:none; width : 100%; height : auto; position: absolute;transform: scaleX(-1);"></video>
         <canvas id="canvas" style="display:block; transform: scaleX(-1);width:100%"></canvas>
@@ -140,6 +149,19 @@ visualsButton.onclick = () => {
         video.style.display = "block";
     }
 };
+const confButton = document.getElementById('toggleConfig');
+toggleConfig.onclick = async () => {
+    if(cmodal.style.display !== "block" ){
+        cmodal.style.display = "block";
+    }else{
+        cmodal.style.display = "none";
+    }
+};
+cclose.onclick = async () => {
+
+        cmodal.style.display = "none";
+};
+
 const audioButton = document.getElementById('toggleAudio');
 audioButton.onclick = async () => {
     if (!audioEnabled) await Tone.start();
@@ -314,7 +336,7 @@ function playHands(landmarks){
         )
         if(dtip < dpip){
             //console.log("PLAY", i);
-            if(playNote(notes[i]))
+            if(playNote(notes[i], i))
                 drawLandmarks(ctx, [landmarks[tip[i]]], { color: "#f00" });
             //drawCircle(landmarks[tip[i]])
         }
@@ -352,12 +374,14 @@ const distortion = new Tone.Distortion(0.5);
 //player.chain(filter, distortion, Tone.Destination);
 player.chain(filter, Tone.Destination);
 
-function playNote(note){
+function playNote(note, i){
 
     const now = Tone.now();
     if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
         /*
         */
+        if(audioPlayers[i]) testSample(i);
+        else
         rightSynth.triggerAttackRelease(
             note,//"C5",
             "8n",
@@ -375,11 +399,13 @@ function playDrum(){
     if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
         //player.start(); //.triggerAttackRelease(["C1", "E1", "G1", "B1"], 0.5);
         //plucky.triggerAttack(drumactive, "+1");
-                    drum.triggerAttackRelease(
-                        drumactive,
-                        "8n",
-                        now + 0.001
-                    );
+        if(audioPlayers[4]) testSample(4);
+        else
+            drum.triggerAttackRelease(
+                drumactive,
+                "8n",
+                now + 0.001
+            );
     /*    
     plucky.triggerAttack("C4", "+0.5");
     plucky.triggerAttack("C3", "+1");
@@ -401,6 +427,80 @@ function drawCircle(p){
     ctx.fill();
 
 }
+//////config
+
+
+        const sampleCount = 5;
+        const samples = [];
+        const audioPlayers = [];
+        const sampleDiv = document.getElementById('samples');
+
+        for (let i = 0; i < sampleCount; i++) {
+            const div = document.createElement('div');
+            div.className = 'sample';
+            div.innerHTML = `
+                <input type="file" accept="audio/*" id="sample-file-${i}" onchange="updateFileName(${i})">
+                <input type="text" placeholder="Sample URL" id="sample-url-${i}">
+                <button onclick="testSample(${i})">Test</button>
+                <button onclick="stopSample(${i})">Stop</button>
+            `;
+            samples.push(div);
+            sampleDiv.appendChild(div);
+            audioPlayers[i] = null;
+        }
+
+        function testSample(index) {
+            const url = document.getElementById(`sample-url-${index}`).value;
+            const fileInput = document.getElementById(`sample-file-${index}`);
+            let fileURL = '';
+
+            if (fileInput.files.length > 0) {
+                fileURL = URL.createObjectURL(fileInput.files[0]);
+            } else {
+                fileURL = url;
+            }
+
+            const audioPlayer = new Tone.Player(fileURL, () => {
+                audioPlayer.toDestination();
+                audioPlayer.autostart = true;
+                audioPlayer.start();
+                audioPlayers[index] = audioPlayer;
+            }).toDestination();
+
+            //audioPlayer.on('load', () => {
+            //    audioPlayers[index] = audioPlayer;
+            //});
+        }
+
+        function stopSample(index) {
+            if (audioPlayers[index]) {
+                audioPlayers[index].stop();
+            }
+        }
+
+        function updateFileName(index) {
+            const fileInput = document.getElementById(`sample-file-${index}`);
+            if (fileInput.files.length > 0) {
+                document.getElementById(`sample-url-${index}`).value = fileInput.files[0].name;
+            }
+        }
+        document.getElementById('save').onclick = function() {
+            const data = samples.map((_, index) => {
+                let fileName = document.getElementById(`sample-file-${index}`).files[0] ? document.getElementById(`sample-file-${index}`).files[0].name : '';
+                let url = document.getElementById(`sample-url-${index}`).value;
+                return { url, fileName };
+            });
+            localStorage.setItem('samples', JSON.stringify(data));
+        }
+
+        document.getElementById('load').onclick = function() {
+            const data = JSON.parse(localStorage.getItem('samples'));
+            if (data) {
+                data.forEach((item, index) => {
+                    document.getElementById(`sample-url-${index}`).value = item.url;
+                });
+            }
+        }
 </script>
 
     </body>

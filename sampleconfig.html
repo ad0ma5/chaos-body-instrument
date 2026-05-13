@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tone.js Sample Configuration</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+        .sample { margin-bottom: 15px; }
+        button { margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Tone.js Sample Configuration</h1>
+    <div id="samples"></div>
+    <button id="start">Start Audio</button>
+    <button id="save">Save</button>
+    <button id="load">Load</button>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.36/Tone.js"></script>
+    <script>
+        const sampleCount = 5;
+        const samples = [];
+        const audioPlayers = [];
+        const sampleDiv = document.getElementById('samples');
+
+        for (let i = 0; i < sampleCount; i++) {
+            const div = document.createElement('div');
+            div.className = 'sample';
+            div.innerHTML = `
+                <input type="file" accept="audio/*" id="sample-file-${i}" onchange="updateFileName(${i})">
+                <input type="text" placeholder="Sample URL" id="sample-url-${i}">
+                <button onclick="testSample(${i})">Test</button>
+                <button onclick="stopSample(${i})">Stop</button>
+            `;
+            samples.push(div);
+            sampleDiv.appendChild(div);
+            audioPlayers[i] = null;
+        }
+
+        document.getElementById('start').onclick = function() {
+            Tone.start();
+        }
+
+        function testSample(index) {
+            const url = document.getElementById(`sample-url-${index}`).value;
+            const fileInput = document.getElementById(`sample-file-${index}`);
+            let fileURL = '';
+
+            if (fileInput.files.length > 0) {
+                fileURL = URL.createObjectURL(fileInput.files[0]);
+            } else {
+                fileURL = url;
+            }
+
+            const audioPlayer = new Tone.Player(fileURL, () => {
+                audioPlayer.toDestination();
+                audioPlayer.autostart = true;
+                audioPlayer.start();
+                audioPlayers[index] = audioPlayer;
+            }).toDestination();
+
+            audioPlayer.on('load', () => {
+                audioPlayers[index] = audioPlayer;
+            });
+        }
+
+        function stopSample(index) {
+            if (audioPlayers[index]) {
+                audioPlayers[index].stop();
+            }
+        }
+
+        function updateFileName(index) {
+            const fileInput = document.getElementById(`sample-file-${index}`);
+            if (fileInput.files.length > 0) {
+                document.getElementById(`sample-url-${index}`).value = fileInput.files[0].name;
+            }
+        }
+
+        document.getElementById('save').onclick = function() {
+            const data = samples.map((_, index) => {
+                const url = document.getElementById(`sample-url-${index}`).value;
+                return { url };
+            });
+            localStorage.setItem('samples', JSON.stringify(data));
+        }
+
+        document.getElementById('load').onclick = function() {
+            const data = JSON.parse(localStorage.getItem('samples'));
+            if (data) {
+                data.forEach((item, index) => {
+                    document.getElementById(`sample-url-${index}`).value = item.url;
+                });
+            }
+        }
+    </script>
+</body>
+</html>
+
