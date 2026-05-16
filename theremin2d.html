@@ -111,7 +111,7 @@ function control(lm){
     //console.log('vol',vol,'pich',ry,'grain', grain,'del',del)
   grainGain.gain.value=vol
   synth.frequency.value=pitch
-  synth.volume.value=0
+  synth.volume.value=vol
   delay.delayTime.value=del
   if(grain<0.5){grainGain.gain.value=vol}else{grainGain.gain.value=vol*(1-grain)}
   

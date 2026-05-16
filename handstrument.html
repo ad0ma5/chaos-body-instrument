@@ -65,7 +65,7 @@
             thrshld.<input  id="thrshld" type="range" value="10" />
             <button id="toggleConfig">Config</button>
         </div>
-        <video id="video" playsinline style="display:none; width : 100%; height : auto; position: absolute;transform: scaleX(-1);"></video>
+        <video id="video" playsinline style=" width : 100%; height : auto; position: absolute;transform: scaleX(-1);"></video>
         <canvas id="canvas" style="display:block; transform: scaleX(-1);width:100%"></canvas>
         <div id="debug"></div>
 
@@ -130,12 +130,7 @@ visualsButton.onclick = () => {
     console.log('Visuals:', showVisuals, [video]);
     if(showVisuals){
         visualsButton.style.background = 'green';
-        const rect = video.getBoundingClientRect();
-        console.log('Rendered Width:', rect.width);
-        console.log('Rendered Height:', rect.height);
         /*
-        canvas.width = rect.width;
-        canvas.height = rect.height;
         cwidth = canvas.width/10;
         cheight = canvas.height/8;
 
@@ -143,12 +138,21 @@ visualsButton.onclick = () => {
         lheight = canvas.height/5;
         zones = buildZones();
         */
-        video.style.display = "none";
+        video.style.display = "block";
+        calcVis()
     }else{
         visualsButton.style.background = '';
-        video.style.display = "block";
+        video.style.display = "none";
     }
 };
+function calcVis(){
+        const rect = video.getBoundingClientRect();
+        console.log('Rendered Width:', rect.width);
+        console.log('Rendered Height:', rect.height);
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+}
+
 const confButton = document.getElementById('toggleConfig');
 toggleConfig.onclick = async () => {
     if(cmodal.style.display !== "block" ){
@@ -197,6 +201,8 @@ startButton.onclick = async () => {
         //visualsButton.style.background = 'green';
         //video.style.display = "none";
     //showVisuals = true
+        calcVis()
+        first = true;
 };
 document.getElementById('stop_button').onclick=()=>{
   location.reload()
@@ -271,9 +277,14 @@ camera.start();
 /* ================================
    HAND RESULTS
 ================================ */
+let first = true;
 function onHands(results) {
     //console.log("onHands", results, ctx);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if(first){
+        first = false;
+        calcVis()
+    }
 
     // mirror camera
     ctx.save();
@@ -297,7 +308,7 @@ function onHands(results) {
       }
 */
             drawLandmarks(ctx, landmarks, { color: "#0ff" });
-            playHands(landmarks);
+            playHands(landmarks, i);
         });
     }
 
@@ -318,7 +329,7 @@ function randNotes(){
     }
 }
 randNotes()
-function playHands(landmarks){
+function playHands(landmarks, hand_i){
 
     //console.log(landmarks);
     const mpc = [5, 9, 13, 17]
@@ -336,7 +347,7 @@ function playHands(landmarks){
         )
         if(dtip < dpip){
             //console.log("PLAY", i);
-            if(playNote(notes[i], i))
+            if(playNote(notes[i], i, hand_i))
                 drawLandmarks(ctx, [landmarks[tip[i]]], { color: "#f00" });
             //drawCircle(landmarks[tip[i]])
         }
@@ -351,7 +362,7 @@ function playHands(landmarks){
     )
     if(tdtip < tdpip){
         //console.log("PLAY drum");
-        if(playDrum())
+        if(playDrum(hand_i))
             drawLandmarks(ctx, [landmarks[4]], { color: "#f00" });
         //drawCircle(landmarks[tip[i]])
     }
@@ -374,7 +385,7 @@ const distortion = new Tone.Distortion(0.5);
 //player.chain(filter, distortion, Tone.Destination);
 player.chain(filter, Tone.Destination);
 
-function playNote(note, i){
+function playNote(note, i, hand_i){
 
     const now = Tone.now();
     if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
@@ -393,7 +404,7 @@ function playNote(note, i){
     }
     return false;
 }
-function playDrum(){
+function playDrum(hand_i){
 
     const now = Tone.now();
     if (audioEnabled && now - lastTriggerTime > MIN_TRIGGER_INTERVAL) {
