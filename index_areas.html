@@ -262,6 +262,7 @@ function getZoneIndex(zones, x, y) {
 let first = true;
 function onResults(results){
     if(first){
+        first = false;
         calcVis()
     }
     ctx.save();

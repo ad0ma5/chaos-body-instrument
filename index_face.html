@@ -66,15 +66,20 @@ visualsButton.onclick = () => {
     console.log('Visuals:', showVisuals, [video]);
     if(showVisuals){
         visualsButton.style.background = 'green';
+        calcVis()
+    }else{
+        visualsButton.style.background = '';
+    }
+};
+
+function calcVis(){
         const rect = video.getBoundingClientRect();
         console.log('Rendered Width:', rect.width);
         console.log('Rendered Height:', rect.height);
         canvas.width = rect.width;
         canvas.height = rect.height;
-    }else{
-        visualsButton.style.background = '';
-    }
-};
+}
+
 const audioButton = document.getElementById('toggleAudio');
 audioButton.onclick = async () => {
     if (!audioEnabled) await Tone.start();
@@ -121,6 +126,9 @@ const hat = new Tone.MetalSynth({
   modulationIndex: 32
 }).toDestination();
 
+const feedbackDelay = new Tone.FeedbackDelay("8n", 0.8).toDestination();
+// Tone instruments
+const leftSynth = new Tone.Synth().connect(feedbackDelay).toDestination();
 /* =========================
    FACE MESH
 ========================= */
@@ -171,8 +179,13 @@ function distance(a, b) {
 /* =========================
    MAIN LOOP
 ========================= */
+let first = true;
 function onResults(results) {
   ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(first){
+        first = false;
+        calcVis()
+    }
 
   if (!results.multiFaceLandmarks?.length) return;
   const lm = results.multiFaceLandmarks[0];
@@ -191,7 +204,12 @@ function onResults(results) {
   const mouthNowOpen = mouthDist > 0.04;
 
   if (mouthNowOpen && !mouthOpen && audioEnabled) {
-    kick.triggerAttackRelease("C1", "8n", Tone.now()+0.001);
+        const now = Tone.now();
+                    leftSynth.triggerAttackRelease(
+                        "C4",
+                        "2n",
+                        now + 0.001 // 🔑 tiny offset avoids Tone conflict
+                    );
     console.log("👄 KICK");
   }
   mouthOpen = mouthNowOpen;
@@ -201,6 +219,7 @@ function onResults(results) {
   const leftEyeNowOpen = leftEyeDist > 0.015;
 
   if (!leftEyeNowOpen && leftEyeOpen && audioEnabled) {
+    kick.triggerAttackRelease("C1", "8n", Tone.now()+0.001);
     snare.triggerAttackRelease("8n", Tone.now()+0.001);
     console.log("👁️ LEFT EYE → SNARE");
   }
