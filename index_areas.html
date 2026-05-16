@@ -109,6 +109,14 @@ visualsButton.onclick = () => {
     if(showVisuals){
         video.style.display = "block";
         visualsButton.style.background = 'green';
+        calcVis()
+    }else{
+        visualsButton.style.background = '';
+        video.style.display = "none";
+    }
+};
+function calcVis(){
+
         const rect = video.getBoundingClientRect();
         console.log('Rendered Width:', rect.width);
         console.log('Rendered Height:', rect.height);
@@ -120,11 +128,7 @@ visualsButton.onclick = () => {
         lwidth = canvas.width/6;
         lheight = canvas.height/10;
         window.zones = buildZones();
-    }else{
-        visualsButton.style.background = '';
-        video.style.display = "none";
-    }
-};
+}
 const audioButton = document.getElementById('toggleAudio');
 audioButton.onclick = async () => {
     if (!audioEnabled) await Tone.start();
@@ -255,8 +259,11 @@ function getZoneIndex(zones, x, y) {
     }
     return null;
 }
-
+let first = true;
 function onResults(results){
+    if(first){
+        calcVis()
+    }
     ctx.save();
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
