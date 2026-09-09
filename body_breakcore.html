@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Body Breakcore — Live Gesture Loop Trigger</title>
+
+<!-- TensorFlow.js + Pose Detection (CDN, no build step) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+
+<style>
+:root{
+  --bg:#0b0d12;
+  --panel:#12151c;
+  --panel-border:#2a2f3a;
+  --cyan:#00eaff;
+  --magenta:#ff00d4;
+  --amber:#ffaa00;
+  --lime:#7cff00;
+  --text:#d8dde5;
+  --muted:#7a8290;
+  --ok:#4ade80;
+  --err:#f87171;
+  --pending:#facc15;
+}
+*{box-sizing:border-box;}
+html,body{
+  margin:0;padding:0;height:100%;
+  background:var(--bg);color:var(--text);
+  font-family:'Segoe UI',Consolas,monospace;
+  font-size:13px;
+}
+body{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+
+.topbar{
+  display:flex;align-items:center;gap:14px;
+  padding:10px 14px;background:var(--panel);
+  border-bottom:1px solid var(--panel-border);
+  flex-wrap:wrap;
+}
+.topbar h1{font-size:16px;margin:0;color:var(--cyan);letter-spacing:0.5px;white-space:nowrap;}
+.topbar .group{display:flex;align-items:center;gap:6px;}
+label{color:var(--muted);font-size:11px;}
+select,input[type=range]{accent-color:var(--cyan);}
+button{
+  background:#1b2029;border:1px solid var(--panel-border);color:var(--text);
+  padding:7px 16px;border-radius:6px;cursor:pointer;font-weight:600;letter-spacing:0.3px;
+}
+button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan);}
+button:disabled{opacity:0.4;cursor:not-allowed;}
+#startBtn{background:linear-gradient(135deg,#0d3d40,#00eaff22);border-color:var(--cyan);color:var(--cyan);}
+#stopBtn{background:linear-gradient(135deg,#3d0d1a,#ff00d422);border-color:var(--magenta);color:var(--magenta);}
+
+.main{flex:1;display:flex;min-height:0;}
+.stage{
+  flex:1 1 60%;position:relative;background:#000;
+  display:flex;align-items:center;justify-content:center;
+  min-width:0;
+}
+.stage-inner{position:relative;max-width:100%;max-height:100%;}
+video{display:block;max-width:100%;max-height:calc(100vh - 60px);transform:scaleX(-1);}
+canvas.overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+
+.sidebar{
+  flex:0 0 380px;max-width:380px;display:flex;flex-direction:column;
+  border-left:1px solid var(--panel-border);background:var(--panel);
+  overflow-y:auto;
+}
+.panel{
+  border:1px solid var(--panel-border);border-radius:8px;margin:10px;
+  background:#161a22;overflow:hidden;
+}
+.panel h2{
+  margin:0;padding:8px 12px;font-size:12px;text-transform:uppercase;
+  letter-spacing:0.8px;color:var(--muted);background:#1b2029;
+  border-bottom:1px solid var(--panel-border);display:flex;justify-content:space-between;align-items:center;
+}
+.panel .body{padding:10px 12px;}
+
+.diag-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;}
+.diag-icon{width:14px;text-align:center;}
+.diag-icon.pending{color:var(--pending);}
+.diag-icon.ok{color:var(--ok);}
+.diag-icon.err{color:var(--err);}
+
+.debug-toggles{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-bottom:8px;}
+.debug-toggles label{display:flex;align-items:center;gap:6px;color:var(--text);font-size:11px;cursor:pointer;}
+
+#logPanel{
+  height:180px;overflow-y:auto;background:#0a0c10;border:1px solid var(--panel-border);
+  border-radius:6px;padding:6px 8px;font-size:10.5px;line-height:1.5;
+}
+.logline{white-space:pre-wrap;word-break:break-word;}
+.logline.CAMERA{color:#5ec8ff;}
+.logline.MODEL{color:#ffd45e;}
+.logline.DETECT{color:#9ea6ff;}
+.logline.ZONE{color:var(--lime);}
+.logline.AUDIO{color:var(--magenta);}
+.logline.STEP{color:#8a93a3;}
+.logline.SYS{color:var(--muted);}
+.logline.ERR{color:var(--err);font-weight:600;}
+
+.layer-row{
+  display:flex;flex-direction:column;gap:4px;padding:8px 0;
+  border-bottom:1px dashed var(--panel-border);
+}
+.layer-row:last-child{border-bottom:none;}
+.layer-head{display:flex;align-items:center;gap:8px;}
+.layer-dot{width:10px;height:10px;border-radius:50%;background:#333;flex:0 0 auto;transition:background .1s,box-shadow .1s;}
+.layer-dot.active{box-shadow:0 0 8px 2px currentColor;}
+.layer-name{flex:1;font-weight:600;}
+.layer-type{font-size:9px;color:var(--muted);text-transform:uppercase;border:1px solid var(--panel-border);border-radius:4px;padding:1px 5px;}
+.layer-controls{display:flex;align-items:center;gap:8px;}
+.layer-controls input[type=range]{flex:1;}
+.layer-controls label{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);cursor:pointer;white-space:nowrap;}
+
+.fps-badge{
+  position:absolute;top:8px;left:8px;background:#000a;color:var(--lime);
+  padding:3px 8px;border-radius:4px;font-size:11px;font-family:monospace;
+  border:1px solid var(--panel-border);
+}
+.people-badge{
+  position:absolute;top:8px;right:8px;background:#000a;color:var(--cyan);
+  padding:3px 8px;border-radius:4px;font-size:11px;font-family:monospace;
+  border:1px solid var(--panel-border);
+}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:#2a2f3a;border-radius:4px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>&#9679; BODY BREAKCORE</h1>
+  <button id="startBtn">▶ Start</button>
+  <button id="stopBtn" disabled>■ Stop</button>
+  <div class="group">
+    <label for="peopleSelect">People</label>
+    <select id="peopleSelect">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+  </div>
+  <div class="group">
+    <label for="cameraSelect">Camera</label>
+    <select id="cameraSelect">
+      <option value="user" selected>Front</option>
+      <option value="environment">Rear</option>
+    </select>
+  </div>
+  <div class="group">
+    <label for="bpmRange">BPM <span id="bpmVal">180</span></label>
+    <input type="range" id="bpmRange" min="120" max="220" value="180">
+  </div>
+  <div class="group">
+    <label for="masterVol">Master <span id="masterVolVal">80</span>%</label>
+    <input type="range" id="masterVol" min="0" max="100" value="80">
+  </div>
+</div>
+
+<div class="main">
+  <div class="stage">
+    <div class="stage-inner">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay" class="overlay"></canvas>
+      <div class="fps-badge" id="fpsBadge">FPS: --</div>
+      <div class="people-badge" id="peopleBadge">People: 0</div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+
+    <div class="panel">
+      <h2>Startup Diagnostics</h2>
+      <div class="body" id="diagList">
+        <div class="diag-row" data-step="camera"><span class="diag-icon pending">&#8987;</span> Camera &amp; Permissions</div>
+        <div class="diag-row" data-step="model"><span class="diag-icon pending">&#8987;</span> TensorFlow Model Load</div>
+        <div class="diag-row" data-step="audio"><span class="diag-icon pending">&#8987;</span> Audio Engine Init</div>
+        <div class="diag-row" data-step="detect"><span class="diag-icon pending">&#8987;</span> Detection Loop</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Debug Toggles</h2>
+      <div class="body">
+        <div class="debug-toggles">
+          <label><input type="checkbox" data-dbg="CAMERA" checked> Camera</label>
+          <label><input type="checkbox" data-dbg="MODEL" checked> Model</label>
+          <label><input type="checkbox" data-dbg="DETECT" checked> Detection</label>
+          <label><input type="checkbox" data-dbg="ZONE" checked> Zone triggers</label>
+          <label><input type="checkbox" data-dbg="AUDIO" checked> Audio engine</label>
+          <label><input type="checkbox" data-dbg="STEP"> Sequencer steps</label>
+          <label><input type="checkbox" id="drawSkeleton" checked> Draw skeleton</label>
+          <label><input type="checkbox" id="drawZones" checked> Draw zone grid</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Debug Log <button id="clearLog" style="padding:2px 8px;font-size:10px;">clear</button></h2>
+      <div class="body"><div id="logPanel"></div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Loop Mixer</h2>
+      <div class="body" id="mixer"><!-- layer rows injected by JS --></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================
+   0. GLOBAL STATE
+   ========================================================= */
+const state = {
+  running:false,
+  bpm:180,
+  masterVol:0.8,
+  peopleCount:2,
+  cameraFacing:'user',
+  debug:{ CAMERA:true, MODEL:true, DETECT:true, ZONE:true, AUDIO:true, STEP:false },
+  drawSkeleton:true,
+  drawZones:true,
+};
+
+let video, overlayCanvas, overlayCtx;
+let detector = null;
+let rafId = null;
+let lastFrameTime = 0;
+let fpsSmoothed = 0;
+
+/* Audio engine handles */
+let actx = null;
+let masterGain = null;
+let noiseBuffer = null;
+let schedulerTimer = null;
+let currentStep = 0;
+let nextNoteTime = 0;
+const LOOKAHEAD_MS = 25;
+const SCHEDULE_AHEAD_S = 0.12;
+const STEPS_PER_BAR = 16;
+
+/* per layer runtime */
+const layerRuntime = {}; // id -> { gain, active, forced, zone, subNodes }
+
+/* zone smoothing counters: key -> {onCount, offCount, state} */
+const zoneSmooth = {};
+const CONF_THRESH = 0.30;
+const SMOOTH_FRAMES = 2;
+
+/* =========================================================
+   1. LOGGING
+   ========================================================= */
+const logPanelEl = () => document.getElementById('logPanel');
+function ts(){
+  const d = new Date();
+  return d.toTimeString().split(' ')[0] + '.' + String(d.getMilliseconds()).padStart(3,'0');
+}
+function log(category, msg){
+  if(category !== 'SYS' && category !== 'ERR' && !state.debug[category]) return;
+  const el = document.createElement('div');
+  el.className = 'logline ' + category;
+  el.textContent = `[${ts()}] [${category}] ${msg}`;
+  const panel = logPanelEl();
+  panel.appendChild(el);
+  while(panel.childNodes.length > 300) panel.removeChild(panel.firstChild);
+  panel.scrollTop = panel.scrollHeight;
+}
+document.getElementById('clearLog').addEventListener('click', ()=> logPanelEl().innerHTML = '');
+document.querySelectorAll('[data-dbg]').forEach(cb=>{
+  cb.addEventListener('change', ()=>{
+    state.debug[cb.dataset.dbg] = cb.checked;
+    log('SYS', `Debug category ${cb.dataset.dbg} = ${cb.checked}`);
+  });
+});
+document.getElementById('drawSkeleton').addEventListener('change', e=> state.drawSkeleton = e.target.checked);
+document.getElementById('drawZones').addEventListener('change', e=> state.drawZones = e.target.checked);
+
+/* =========================================================
+   2. DIAGNOSTICS UI HELPERS
+   ========================================================= */
+function setDiag(step, status){ // status: 'pending' | 'ok' | 'err'
+  const row = document.querySelector(`.diag-row[data-step="${step}"]`);
+  if(!row) return;
+  const icon = row.querySelector('.diag-icon');
+  icon.className = 'diag-icon ' + status;
+  icon.innerHTML = status === 'ok' ? '&#10003;' : status === 'err' ? '&#10007;' : '&#8987;';
+}
+function resetDiags(){
+  ['camera','model','audio','detect'].forEach(s=> setDiag(s,'pending'));
+}
+
+/* =========================================================
+   3. ZONE / LAYER DEFINITIONS
+   ========================================================= */
+// 8 zones total: 4 "hand" zones (top row, use wrists) + 4 "leg" zones (bottom row, use ankles)
+const LAYER_DEFS = [
+  { id:'amen',    name:'Amen Chop',       type:'hand', idx:0, color:'#00eaff', kind:'pattern',
+    pattern:[ {t:'kick',v:1},{t:'hat',v:0.4},null,{t:'snare',v:0.5},
+              {t:'kick',v:0.9},null,{t:'hat',v:0.4},{t:'snare',v:0.8},
+              {t:'kick',v:1},null,{t:'hat',v:0.4},{t:'kick',v:0.6},
+              {t:'snare',v:1},null,{t:'hat',v:0.4},{t:'kick',v:0.7} ] },
+  { id:'glitch',  name:'Glitch Stutter',  type:'hand', idx:1, color:'#ff00d4', kind:'glitch' },
+  { id:'riser',   name:'Noise Riser',     type:'hand', idx:2, color:'#ffaa00', kind:'riser' },
+  { id:'revcym',  name:'Reverse Cymbal',  type:'hand', idx:3, color:'#7cff00', kind:'reverse' },
+  { id:'kick',    name:'Kick Blast',      type:'leg',  idx:0, color:'#00eaff', kind:'pattern',
+    pattern:[1,0,0,0.6, 1,0,0,0.6, 1,0,0.7,0, 1,0,0.8,0].map(v=> v ? {t:'kick',v} : null) },
+  { id:'snare',   name:'Snare Roll',      type:'leg',  idx:1, color:'#ff00d4', kind:'pattern',
+    pattern:[null,null,null,null, {t:'snare',v:1},null,null,null,
+             null,null,null,null, {t:'snare',v:1},{t:'snare',v:0.4},{t:'snare',v:0.5},{t:'snare',v:0.7}] },
+  { id:'hihat',   name:'Hihat 32nd',      type:'leg',  idx:2, color:'#ffaa00', kind:'hihat' },
+  { id:'sub',     name:'Sub Wobble',      type:'leg',  idx:3, color:'#7cff00', kind:'continuous' },
+];
+
+// Build zone rectangles (fractions of video width/height), 4 columns each row
+function buildZoneRects(w, h){
+  const zones = [];
+  const colW = w / 4;
+  const rowH = h / 2;
+  for(let i=0;i<4;i++){
+    zones.push({ type:'hand', idx:i, x:i*colW, y:0,    w:colW, h:rowH });
+    zones.push({ type:'leg',  idx:i, x:i*colW, y:rowH, w:colW, h:rowH });
+  }
+  return zones;
+}
+function layerFor(type, idx){
+  return LAYER_DEFS.find(l => l.type===type && l.idx===idx);
+}
+
+/* =========================================================
+   4. MIXER UI
+   ========================================================= */
+function buildMixerUI(){
+  const mixer = document.getElementById('mixer');
+  mixer.innerHTML = '';
+  LAYER_DEFS.forEach(layer=>{
+    const row = document.createElement('div');
+    row.className = 'layer-row';
+    row.innerHTML = `
+      <div class="layer-head">
+        <div class="layer-dot" id="dot-${layer.id}" style="color:${layer.color}"></div>
+        <div class="layer-name" style="color:${layer.color}">${layer.name}</div>
+        <div class="layer-type">${layer.type}</div>
+      </div>
+      <div class="layer-controls">
+        <input type="range" min="0" max="100" value="80" id="vol-${layer.id}">
+        <label><input type="checkbox" id="force-${layer.id}"> Force On</label>
+      </div>`;
+    mixer.appendChild(row);
+  });
+}
+buildMixerUI();
+
+/* =========================================================
+   5. AUDIO SYNTH VOICE HELPERS
+   ========================================================= */
+function createNoiseBuffer(ctx){
+  const bufferSize = ctx.sampleRate * 2;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2-1;
+  return buffer;
+}
+function playKick(dest, time, velocity){
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.type='sine';
+  osc.frequency.setValueAtTime(150, time);
+  osc.frequency.exponentialRampToValueAtTime(40, time+0.15);
+  gain.gain.setValueAtTime(Math.max(velocity,0.001), time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time+0.2);
+  osc.connect(gain); gain.connect(dest);
+  osc.start(time); osc.stop(time+0.25);
+}
+function playSnare(dest, time, velocity){
+  const noise = actx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const bp = actx.createBiquadFilter();
+  bp.type='bandpass'; bp.frequency.value=1800;
+  const ng = actx.createGain();
+  ng.gain.setValueAtTime(Math.max(velocity,0.001), time);
+  ng.gain.exponentialRampToValueAtTime(0.001, time+0.15);
+  noise.connect(bp); bp.connect(ng); ng.connect(dest);
+  noise.start(time); noise.stop(time+0.2);
+  const osc = actx.createOscillator();
+  osc.type='triangle'; osc.frequency.value=180;
+  const og = actx.createGain();
+  og.gain.setValueAtTime(Math.max(velocity*0.6,0.001), time);
+  og.gain.exponentialRampToValueAtTime(0.001, time+0.1);
+  osc.connect(og); og.connect(dest);
+  osc.start(time); osc.stop(time+0.12);
+}
+function playHat(dest, time, velocity){
+  const noise = actx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const hp = actx.createBiquadFilter();
+  hp.type='highpass'; hp.frequency.value=7000;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(Math.max(velocity*0.5,0.001), time);
+  g.gain.exponentialRampToValueAtTime(0.001, time+0.05);
+  noise.connect(hp); hp.connect(g); g.connect(dest);
+  noise.start(time); noise.stop(time+0.06);
+}
+function playGlitch(dest, time, stepDur){
+  const grains = 3 + Math.floor(Math.random()*4);
+  for(let i=0;i<grains;i++){
+    const t = time + (i*stepDur/grains);
+    const src = actx.createBufferSource();
+    src.buffer = noiseBuffer;
+    const bp = actx.createBiquadFilter();
+    bp.type='bandpass'; bp.frequency.value = 800+Math.random()*4000;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + Math.max(stepDur/grains*0.8, 0.01));
+    src.connect(bp); bp.connect(g); g.connect(dest);
+    src.start(t); src.stop(t + stepDur/grains + 0.02);
+  }
+}
+function playRiser(dest, time, duration){
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuffer; src.loop = true;
+  const bp = actx.createBiquadFilter();
+  bp.type='lowpass';
+  bp.frequency.setValueAtTime(200, time);
+  bp.frequency.exponentialRampToValueAtTime(9000, time+duration);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.7, time+duration*0.95);
+  g.gain.linearRampToValueAtTime(0.0001, time+duration);
+  src.connect(bp); bp.connect(g); g.connect(dest);
+  src.start(time); src.stop(time+duration+0.02);
+}
+function playReverseCymbal(dest, time, duration){
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuffer; src.loop = true;
+  const bp = actx.createBiquadFilter();
+  bp.type='bandpass'; bp.frequency.value = 6000; bp.Q.value = 0.7;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.6, time+duration*0.98);
+  g.gain.setValueAtTime(0.0001, time+duration);
+  src.connect(bp); bp.connect(g); g.connect(dest);
+  src.start(time); src.stop(time+duration+0.02);
+}
+function createSubWobble(dest){
+  const osc = actx.createOscillator();
+  osc.type='sawtooth'; osc.frequency.value=55;
+  const filter = actx.createBiquadFilter();
+  filter.type='lowpass'; filter.frequency.value=300; filter.Q.value=8;
+  const lfo = actx.createOscillator();
+  lfo.type='sine'; lfo.frequency.value = state.bpm/60;
+  const lfoGain = actx.createGain();
+  lfoGain.gain.value = 250;
+  lfo.connect(lfoGain); lfoGain.connect(filter.frequency);
+  osc.connect(filter); filter.connect(dest);
+  osc.start(); lfo.start();
+  return { osc, lfo, filter,
+    updateRate:(bpm)=>{ try{ lfo.frequency.setValueAtTime(bpm/60, actx.currentTime); }catch(e){} } };
+}
+
+/* =========================================================
+   6. AUDIO ENGINE INIT / LAYER GRAPH
+   ========================================================= */
+function initAudioEngine(){
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = actx.createGain();
+  masterGain.gain.value = state.masterVol;
+  masterGain.connect(actx.destination);
+  noiseBuffer = createNoiseBuffer(actx);
+
+  LAYER_DEFS.forEach(layer=>{
+    const g = actx.createGain();
+    g.gain.value = 0.0001; // start muted
+    g.connect(masterGain);
+    layerRuntime[layer.id] = { gain:g, active:false, forced:false, sub:null, volume:0.8 };
+    if(layer.kind === 'continuous'){
+      layerRuntime[layer.id].sub = createSubWobble(g);
+    }
+  });
+  log('AUDIO', `AudioContext created (state=${actx.state}, sampleRate=${actx.sampleRate})`);
+}
+
+function setLayerActive(id, active){
+  const rt = layerRuntime[id];
+  if(!rt || rt.active === active) return;
+  rt.active = active;
+  const target = active ? rt.volume : 0.0001;
+  try{
+    rt.gain.gain.cancelScheduledValues(actx.currentTime);
+    rt.gain.gain.setTargetAtTime(target, actx.currentTime, 0.03);
+  }catch(e){}
+  log('ZONE', `Layer "${id}" ${active ? 'ACTIVE' : 'muted'}`);
+  const dot = document.getElementById('dot-'+id);
+  if(dot) dot.classList.toggle('active', active);
+}
+
+/* Mixer volume + force-on wiring (attached after mixer UI is built) */
+LAYER_DEFS.forEach(layer=>{
+  const volEl = document.getElementById('vol-'+layer.id);
+  const forceEl = document.getElementById('force-'+layer.id);
+  volEl.addEventListener('input', ()=>{
+    const v = volEl.value/100;
+    if(layerRuntime[layer.id]){
+      layerRuntime[layer.id].volume = v;
+      if(layerRuntime[layer.id].active && actx){
+        layerRuntime[layer.id].gain.gain.setTargetAtTime(v, actx.currentTime, 0.03);
+      }
+    }
+  });
+  forceEl.addEventListener('change', ()=>{
+    if(layerRuntime[layer.id]) layerRuntime[layer.id].forced = forceEl.checked;
+    log('ZONE', `Layer "${layer.id}" force-on = ${forceEl.checked}`);
+  });
+});
+
+/* =========================================================
+   7. SCHEDULER (look-ahead pattern)
+   ========================================================= */
+function scheduleStep(step, time){
+  const stepDur = 60 / state.bpm / 4; // 16th note duration in seconds
+  LAYER_DEFS.forEach(layer=>{
+    const rt = layerRuntime[layer.id];
+    if(!rt) return;
+    if(layer.kind === 'pattern'){
+      const ev = layer.pattern[step];
+      if(ev){
+        if(ev.t==='kick') playKick(rt.gain, time, ev.v);
+        else if(ev.t==='snare') playSnare(rt.gain, time, ev.v);
+        else if(ev.t==='hat') playHat(rt.gain, time, ev.v);
+        if(state.debug.STEP) log('STEP', `${layer.id} step${step} -> ${ev.t}@${ev.v.toFixed(2)}`);
+      }
+    } else if(layer.kind === 'hihat'){
+      playHat(rt.gain, time, step%2===0?0.8:0.5);
+      playHat(rt.gain, time + stepDur/2, 0.35 + Math.random()*0.2);
+      if(state.debug.STEP) log('STEP', `hihat step${step} (32nd pair)`);
+    } else if(layer.kind === 'glitch'){
+      if(Math.random() < 0.35){
+        playGlitch(rt.gain, time, stepDur);
+        if(state.debug.STEP) log('STEP', `glitch burst at step${step}`);
+      }
+    } else if(layer.kind === 'riser'){
+      if(step === 0){
+        const barDur = stepDur * STEPS_PER_BAR;
+        playRiser(rt.gain, time, barDur);
+        if(state.debug.STEP) log('STEP', `riser scheduled for full bar (${barDur.toFixed(2)}s)`);
+      }
+    } else if(layer.kind === 'reverse'){
+      if(step === 12){
+        const dur = stepDur * 4; // last beat of the bar, swelling into next bar's step0
+        playReverseCymbal(rt.gain, time, dur);
+        if(state.debug.STEP) log('STEP', `reverse cymbal swell scheduled (${dur.toFixed(2)}s)`);
+      }
+    }
+    // 'continuous' (sub wobble) needs no per-step triggering; gain mute/unmute handles it.
+  });
+}
+
+function schedulerTick(){
+  if(!state.running) return;
+  while(nextNoteTime < actx.currentTime + SCHEDULE_AHEAD_S){
+    scheduleStep(currentStep, nextNoteTime);
+    const stepDur = 60 / state.bpm / 4;
+    nextNoteTime += stepDur;
+    currentStep = (currentStep + 1) % STEPS_PER_BAR;
+  }
+  schedulerTimer = setTimeout(schedulerTick, LOOKAHEAD_MS);
+}
+function startScheduler(){
+  currentStep = 0;
+  nextNoteTime = actx.currentTime + 0.05;
+  schedulerTick();
+  log('AUDIO', 'Scheduler started');
+}
+function stopScheduler(){
+  if(schedulerTimer) clearTimeout(schedulerTimer);
+  schedulerTimer = null;
+  Object.keys(layerRuntime).forEach(id=> setLayerActive(id, false));
+  log('AUDIO', 'Scheduler stopped');
+}
+
+/* =========================================================
+   8. CAMERA
+   ========================================================= */
+async function initCamera(){
+  log('CAMERA', `Requesting camera (facingMode=${state.cameraFacing})...`);
+  const constraints = { video:{ facingMode:state.cameraFacing, width:{ideal:1280}, height:{ideal:720} }, audio:false };
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  video.srcObject = stream;
+  await new Promise((resolve, reject)=>{
+    video.onloadedmetadata = ()=>{ video.play().then(resolve).catch(reject); };
+    setTimeout(()=> reject(new Error('Camera metadata timeout')), 8000);
+  });
+  overlayCanvas.width = video.videoWidth;
+  overlayCanvas.height = video.videoHeight;
+  log('CAMERA', `Camera ready: ${video.videoWidth}x${video.videoHeight}`);
+  return stream;
+}
+function stopCamera(){
+  const stream = video.srcObject;
+  if(stream){
+    stream.getTracks().forEach(t=> t.stop());
+    video.srcObject = null;
+  }
+}
+
+/* =========================================================
+   9. MODEL LOADING
+   ========================================================= */
+async function initModel(){
+  log('MODEL', 'Setting backend to webgl...');
+  await tf.setBackend('webgl');
+  await tf.ready();
+  log('MODEL', `Backend ready: ${tf.getBackend()}`);
+  const detectorConfig = {
+    modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING,
+    enableTracking: true,
+    trackerType: poseDetection.TrackerType.BoundingBox
+  };
+  const t0 = performance.now();
+  detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, detectorConfig);
+  log('MODEL', `MoveNet MultiPose Lightning loaded in ${(performance.now()-t0).toFixed(0)}ms`);
+}
+
+/* =========================================================
+   10. ZONE HIT-TESTING
+   ========================================================= */
+let zoneRects = [];
+function checkPoint(kp, type, w, h, frameHits){
+  if(!kp || kp.score < CONF_THRESH) return;
+  const mx = w - kp.x; // mirror to match displayed/selfie view
+  const my = kp.y;
+  zoneRects.filter(z=>z.type===type).forEach(z=>{
+    if(mx >= z.x && mx <= z.x+z.w && my >= z.y && my <= z.y+z.h){
+      frameHits.add(type+'_'+z.idx);
+    }
+  });
+}
+function updateZonesFromPoses(poses, w, h){
+  const frameHits = new Set();
+  poses.forEach(pose=>{
+    const kp = {};
+    pose.keypoints.forEach(k=> kp[k.name] = k);
+    checkPoint(kp.left_wrist, 'hand', w, h, frameHits);
+    checkPoint(kp.right_wrist, 'hand', w, h, frameHits);
+    checkPoint(kp.left_ankle, 'leg', w, h, frameHits);
+    checkPoint(kp.right_ankle, 'leg', w, h, frameHits);
+  });
+
+  zoneRects.forEach(z=>{
+    const key = z.type+'_'+z.idx;
+    const layer = layerFor(z.type, z.idx);
+    if(!layer) return;
+    const rt = layerRuntime[layer.id];
+    const hit = frameHits.has(key);
+    if(!zoneSmooth[key]) zoneSmooth[key] = { onCount:0, offCount:0, state:false };
+    const sm = zoneSmooth[key];
+    if(hit){ sm.onCount++; sm.offCount=0; } else { sm.offCount++; sm.onCount=0; }
+    if(!sm.state && sm.onCount >= SMOOTH_FRAMES) sm.state = true;
+    if(sm.state && sm.offCount >= SMOOTH_FRAMES) sm.state = false;
+
+    const finalActive = sm.state || (rt && rt.forced);
+    setLayerActive(layer.id, !!finalActive);
+  });
+}
+
+/* =========================================================
+   11. RENDERING (skeleton + zone grid)
+   ========================================================= */
+const SKELETON_EDGES = [
+  ['left_shoulder','right_shoulder'],['left_shoulder','left_elbow'],['left_elbow','left_wrist'],
+  ['right_shoulder','right_elbow'],['right_elbow','right_wrist'],['left_shoulder','left_hip'],
+  ['right_shoulder','right_hip'],['left_hip','right_hip'],['left_hip','left_knee'],
+  ['left_knee','left_ankle'],['right_hip','right_knee'],['right_knee','right_ankle']
+];
+function drawZoneGrid(w,h){
+  zoneRects.forEach(z=>{
+    const layer = layerFor(z.type, z.idx);
+    const key = z.type+'_'+z.idx;
+    const sm = zoneSmooth[key];
+    const active = sm && sm.state;
+    overlayCtx.strokeStyle = layer ? layer.color : '#555';
+    overlayCtx.lineWidth = active ? 3 : 1;
+    overlayCtx.globalAlpha = active ? 0.9 : 0.35;
+    overlayCtx.strokeRect(z.x+2, z.y+2, z.w-4, z.h-4);
+    if(active){
+      overlayCtx.fillStyle = layer.color;
+      overlayCtx.globalAlpha = 0.15;
+      overlayCtx.fillRect(z.x+2, z.y+2, z.w-4, z.h-4);
+    }
+    overlayCtx.globalAlpha = 0.8;
+    overlayCtx.fillStyle = layer ? layer.color : '#888';
+    overlayCtx.font = '11px monospace';
+    overlayCtx.fillText(layer ? layer.name : '', z.x+8, z.y+16);
+    overlayCtx.globalAlpha = 1;
+  });
+}
+function drawSkeletons(poses, w){
+  poses.forEach(pose=>{
+    const kp = {};
+    pose.keypoints.forEach(k=> kp[k.name]=k);
+    overlayCtx.strokeStyle = '#00eaff';
+    overlayCtx.lineWidth = 2;
+    SKELETON_EDGES.forEach(([a,b])=>{
+      const pa = kp[a], pb = kp[b];
+      if(pa && pb && pa.score>CONF_THRESH && pb.score>CONF_THRESH){
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(w-pa.x, pa.y);
+        overlayCtx.lineTo(w-pb.x, pb.y);
+        overlayCtx.stroke();
+      }
+    });
+    ['left_wrist','right_wrist','left_ankle','right_ankle'].forEach(name=>{
+      const p = kp[name];
+      if(p && p.score>CONF_THRESH){
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle = name.includes('wrist') ? '#ff00d4' : '#7cff00';
+        overlayCtx.arc(w-p.x, p.y, 6, 0, Math.PI*2);
+        overlayCtx.fill();
+      }
+    });
+  });
+}
+
+/* =========================================================
+   12. DETECTION LOOP
+   ========================================================= */
+async function detectLoop(){
+  if(!state.running) return;
+  const now = performance.now();
+  const dt = now - lastFrameTime;
+  lastFrameTime = now;
+  const fps = 1000/dt;
+  fpsSmoothed = fpsSmoothed ? fpsSmoothed*0.9 + fps*0.1 : fps;
+  document.getElementById('fpsBadge').textContent = 'FPS: ' + fpsSmoothed.toFixed(0);
+
+  try{
+    const allPoses = await detector.estimatePoses(video);
+    const poses = allPoses
+      .sort((a,b)=> (b.score||0)-(a.score||0))
+      .slice(0, state.peopleCount);
+
+    document.getElementById('peopleBadge').textContent = 'People: ' + poses.length;
+    if(state.debug.DETECT && Math.random()<0.08){ // throttled logging
+      log('DETECT', `poses=${poses.length}/${allPoses.length} fps=${fpsSmoothed.toFixed(1)}`);
+    }
+
+    const w = video.videoWidth, h = video.videoHeight;
+    overlayCtx.clearRect(0,0,w,h);
+    if(state.drawZones) drawZoneGrid(w,h);
+    if(state.drawSkeleton) drawSkeletons(poses, w);
+    updateZonesFromPoses(poses, w, h);
+
+  }catch(err){
+    log('ERR', 'Detection error: ' + err.message);
+  }
+  rafId = requestAnimationFrame(detectLoop);
+}
+
+/* =========================================================
+   13. START / STOP FLOW
+   ========================================================= */
+async function handleStart(){
+  document.getElementById('startBtn').disabled = true;
+  resetDiags();
+  logPanelEl().innerHTML = '';
+  log('SYS', 'Startup sequence beginning...');
+
+  state.peopleCount = parseInt(document.getElementById('peopleSelect').value, 10);
+  state.cameraFacing = document.getElementById('cameraSelect').value;
+  state.bpm = parseInt(document.getElementById('bpmRange').value, 10);
+  state.masterVol = document.getElementById('masterVol').value/100;
+
+  // Step 1: Camera
+  try{
+    await initCamera();
+    setDiag('camera','ok');
+  }catch(err){
+    setDiag('camera','err');
+    log('ERR', 'Camera init failed: ' + err.message);
+    document.getElementById('startBtn').disabled = false;
+    return;
+  }
+
+  // Step 2: Model
+  try{
+    await initModel();
+    setDiag('model','ok');
+  }catch(err){
+    setDiag('model','err');
+    log('ERR', 'Model load failed: ' + err.message);
+    stopCamera();
+    document.getElementById('startBtn').disabled = false;
+    return;
+  }
+
+  // Step 3: Audio
+  try{
+    initAudioEngine();
+    zoneRects = buildZoneRects(video.videoWidth, video.videoHeight);
+    setDiag('audio','ok');
+  }catch(err){
+    setDiag('audio','err');
+    log('ERR', 'Audio init failed: ' + err.message);
+    stopCamera();
+    document.getElementById('startBtn').disabled = false;
+    return;
+  }
+
+  // Step 4: Detection loop + scheduler
+  try{
+    state.running = true;
+    lastFrameTime = performance.now();
+    startScheduler();
+    rafId = requestAnimationFrame(detectLoop);
+    setDiag('detect','ok');
+    log('SYS', 'All systems verified — live.');
+  }catch(err){
+    setDiag('detect','err');
+    log('ERR', 'Detection loop failed to start: ' + err.message);
+    document.getElementById('startBtn').disabled = false;
+    return;
+  }
+
+  document.getElementById('stopBtn').disabled = false;
+  document.getElementById('peopleSelect').disabled = true;
+  document.getElementById('cameraSelect').disabled = true;
+}
+
+function handleStop(){
+  state.running = false;
+  if(rafId) cancelAnimationFrame(rafId);
+  rafId = null;
+  stopScheduler();
+  if(actx){ actx.close().catch(()=>{}); actx = null; }
+  stopCamera();
+  overlayCtx.clearRect(0,0,overlayCanvas.width, overlayCanvas.height);
+  Object.keys(zoneSmooth).forEach(k=> delete zoneSmooth[k]);
+  document.getElementById('fpsBadge').textContent = 'FPS: --';
+  document.getElementById('peopleBadge').textContent = 'People: 0';
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('peopleSelect').disabled = false;
+  document.getElementById('cameraSelect').disabled = false;
+  resetDiags();
+  log('SYS', 'Stopped. All resources released.');
+}
+
+/* =========================================================
+   14. UI WIRING
+   ========================================================= */
+document.getElementById('bpmRange').addEventListener('input', e=>{
+  state.bpm = parseInt(e.target.value, 10);
+  document.getElementById('bpmVal').textContent = state.bpm;
+  Object.values(layerRuntime).forEach(rt=>{ if(rt.sub) rt.sub.updateRate(state.bpm); });
+});
+document.getElementById('masterVol').addEventListener('input', e=>{
+  state.masterVol = e.target.value/100;
+  document.getElementById('masterVolVal').textContent = e.target.value;
+  if(masterGain && actx) masterGain.gain.setTargetAtTime(state.masterVol, actx.currentTime, 0.03);
+});
+document.getElementById('startBtn').addEventListener('click', handleStart);
+document.getElementById('stopBtn').addEventListener('click', handleStop);
+
+/* =========================================================
+   15. INIT
+   ========================================================= */
+window.addEventListener('DOMContentLoaded', ()=>{
+  video = document.getElementById('video');
+  overlayCanvas = document.getElementById('overlay');
+  overlayCtx = overlayCanvas.getContext('2d');
+  log('SYS', 'App ready. Press Start to enable camera and go live.');
+});
+</script>
+</body>
+</html>
+
